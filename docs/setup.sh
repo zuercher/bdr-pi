@@ -70,4 +70,4 @@ fi
 mkdir -p "${BDR_DIR}/state" || abort "could not create state dir"
 
 # Initial setup is complete, now transfer control to the code in BDR_DIR
-sudo BDR_DIR="${BDR_DIR}" "${BDR_DIR}/update.sh" "$@"
+sudo SETUP_USER="${USER}" SETUP_HOME="${HOME}" BDR_DIR="${BDR_DIR}" "${BDR_DIR}/update.sh" "$@"
