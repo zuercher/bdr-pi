@@ -22,12 +22,6 @@ if [ -z "${BASH_VERSION:-}" ]; then
     abort "bash is required to interpret this script."
 fi
 
-# Check if stdin is a terminal
-NOTERM=false
-if [ ! -t 0 ]; then
-    NOTERM=true
-fi
-
 OS="$(uname)"
 if [[ "$OS" != "Linux" ]]; then
     abort "OS is ${OS} -- this isn't going to work out."

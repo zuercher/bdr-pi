@@ -13,7 +13,14 @@ prompt() {
     local ANSWER
     local DEFAULT="$1"
     shift
-    read -er -p "$*" ANSWER
+
+    if "${NOTERM:-false}"; then
+        echo "no terminal available -- assuming ${DEFAULT} for $*"
+        echo "${DEFAULT}"
+        return 0
+    fi
+
+    read -er -p "$* [${DEFAULT}]: " ANSWER
     if [ -z "${ANSWER}" ]; then
         ANSWER="${DEFAULT}"
     fi
@@ -66,7 +73,7 @@ report() {
     printf "  %s: %s\n" "${STAGE_NAME}" "$@"
 }
 
-SCRIPT_DIR="$(cd "$(dirname "$0")"; pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" || exit; pwd)"
 if [[ "${BDR_DIR}" != "${SCRIPT_DIR}" ]]; then
     abort "update.sh should not be run directly; use setup.sh"
 fi
@@ -94,6 +101,13 @@ if "${TEST}"; then
 fi
 export TEST
 
+# Check if stdin is a terminal
+NOTERM=false
+if [ ! -t 0 ]; then
+    NOTERM=true
+fi
+export NOTERM
+
 STATE_DIR="${BDR_DIR}/state"
 mkdir -p "${STATE_DIR}" || abort "could not create state dir ${STATE_DIR}"
 
@@ -115,6 +129,7 @@ for STAGE in "${STAGES[@]}"; do
     fi
 
     start_stage "${STAGE_NAME}"
+    # shellcheck disable=SC1090
     source "${STAGE}"
     run_stage || abort "stage ${STAGE_NAME} failed"
     complete_stage "${STAGE_NAME}"
