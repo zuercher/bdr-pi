@@ -1,0 +1,16 @@
+- change default password
+- autologin
+x wifi country
+- wifi ssid -> get passwords
+- default locale?
+- gpu mem to 256
+- enable ssh + run ssh-add + put ssh-add into startup?
+- Select OpenGL desktop driver with fake KMS
+  * raspi-config do_gldriver "G2"
+  * needs rebooted (automate?)
+- sudo apt-get install mesa-utils libgles2 libegl1-mesa libegl-mesa0
+- sudo adduser pi render
+- sudo apt-get install mtdev-tools
+- install touch screen thing
+- install racecapture: https://autosportlabs-software.s3-us-west-2.amazonaws.com/RaceCapturePro_MK3_2.18.4.zip
+- install https://github.com/xorbit/LiFePO4wered-Pi

@@ -35,6 +35,17 @@ pop_dir() {
     popd || abort "could not pop dir"
 }
 
+installed() {
+    local BINARY="$1"
+    hash "${BINARY}" 2> /dev/null
+    return $?
+}
+
+reboot_required() {
+    # TODO
+    echo "scheduling reboot"
+}
+
 check_stage() {
     local STAGE_NAME="$1"
     local STATE_FILE="${STATE_DIR}/${STAGE_NAME}"

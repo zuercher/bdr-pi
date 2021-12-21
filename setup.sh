@@ -16,6 +16,12 @@ pop_dir() {
     popd || abort "could not pop dir"
 }
 
+installed() {
+    local BINARY="$1"
+    hash "${BINARY}" 2> /dev/null
+    return $?
+}
+
 # Require bash
 # shellcheck disable=SC2292
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -33,13 +39,13 @@ if [[ "$DISTRIBUTION" != "Raspbian" ]]; then
 fi
 
 # Check if git is installed.
-if hash git >/dev/null 2>&1; then
+if installed git; then
     # Nope. Tallyho!
     echo "installing git"
     sudo apt-get -y install git
     hash -r
 
-    if hash git >/dev/null 2>&1; then
+    if ! installed git; then
         abort "tried to install git, but still can't find it on the path"
     fi
 fi
@@ -60,4 +66,4 @@ mkdir -p "${BDR_DIR}/state" || abort "could not create state dir"
 
 # Initial setup is complete, now transfer control to the code in BDR_DIR
 export BDR_DIR
-"${BDR_DIR}/update.sh" "$@"
+sudo "${BDR_DIR}/update.sh" "$@"
