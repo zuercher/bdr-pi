@@ -119,6 +119,9 @@ if [ ! -t 0 ]; then
 fi
 export NOTERM
 
+SETUP_USER="${SUDO_USER:-$(who -m | awk '{ print $1 }')}"
+export SETUP_USER
+
 STATE_DIR="${BDR_DIR}/state"
 mkdir -p "${STATE_DIR}" || abort "could not create state dir ${STATE_DIR}"
 
