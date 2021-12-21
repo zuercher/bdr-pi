@@ -1,0 +1,4 @@
+collections_dir: script
+collection:
+  script:
+    output: true
