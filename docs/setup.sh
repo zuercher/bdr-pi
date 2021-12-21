@@ -13,7 +13,7 @@ push_dir() {
 }
 
 pop_dir() {
-    popd || abort "could not pop dir"
+    popd >/dev/null || abort "could not pop dir"
 }
 
 installed() {
@@ -55,11 +55,16 @@ BDR_DIR="${HOME}/.bdr-pi"
 if [[ -d "${BDR_DIR}/.git" ]]; then
     # Git repository is present. Let's update it.
     push_dir "${BDR_DIR}"
+    echo -n "${REPO} "
     git pull || abort "unable to pull $(git remote get-url origin)"
     pop_dir
 else
     # No git repository. Clone it.
     git clone "${REPO}" "${BDR_DIR}" || abort "unable to clone ${REPO}"
+    push_dir "${BDR_DIR}"
+    # So it doesn't complain every time we pull
+    git config pull.ff only
+    pop_dir
 fi
 
 mkdir -p "${BDR_DIR}/state" || abort "could not create state dir"
