@@ -39,7 +39,7 @@ if [[ "$DISTRIBUTION" != "Raspbian" ]]; then
 fi
 
 # Check if git is installed.
-if installed git; then
+if ! installed git; then
     # Nope. Tallyho!
     echo "installing git"
     sudo apt-get -y install git
