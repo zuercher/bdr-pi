@@ -2,8 +2,8 @@
 title: View Installation Script
 ---
 
-The content of the [installation script](/script.sh) are:
+The contents of the [installation script](/script.sh) are:
 
-``` shell
+{% highlight shell linenos %}
 {% include_relative setup.sh %}
-```
+{% endhighlight %}
