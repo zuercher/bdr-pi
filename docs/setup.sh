@@ -51,7 +51,7 @@ if ! installed git; then
 fi
 
 REPO="https://github.com/zuercher/bdr-pi"
-BDR_DIR="${HOME}/${USER}/.bdr-pi"
+BDR_DIR="${HOME}/.bdr-pi"
 if [[ -d "${BDR_DIR}/.git" ]]; then
     # Git repository is present. Let's update it.
     push_dir "${BDR_DIR}"
@@ -65,5 +65,4 @@ fi
 mkdir -p "${BDR_DIR}/state" || abort "could not create state dir"
 
 # Initial setup is complete, now transfer control to the code in BDR_DIR
-export BDR_DIR
-sudo "${BDR_DIR}/update.sh" "$@"
+sudo BDR_DIR="${BDR_DIR}" "${BDR_DIR}/update.sh" "$@"
