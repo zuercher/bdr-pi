@@ -43,7 +43,7 @@ installed() {
 
 _has_on_reboot() {
     local BASHRC="${SETUP_HOME}/.bashrc"
-    grep -q "${BASHRC}" "# BEGIN_ON_REBOOT VIA"
+    grep -q "# BEGIN_ON_REBOOT VIA" "${BASHRC}"
 }
 
 _clear_on_reboot() {
@@ -70,7 +70,7 @@ _on_reboot() {
         TTYPE="pseudo-terminal"
     fi
 
-    if grep -q "${BASHRC}" "# BEGIN_ON_REBOOT VIA ${TTYPE}"; then
+    if grep -q "# BEGIN_ON_REBOOT VIA ${TTYPE}" "${BASHRC}"; then
         # an on-reboot step is already scheduled.
         report "reboot already scheduled"
         return 0
@@ -84,7 +84,7 @@ _on_reboot() {
 
     local MATCH="^${THIS_TTY}"
     local DESC="${THIS_TTY}"
-    if [[ "${TTYPE}" == "psuedo-terminal" ]]; then
+    if [[ "${TTYPE}" == "pseudo-terminal" ]]; then
         MATCH="^/dev/pts/.+"
         DESC="a pseudo-terminal"
     fi
