@@ -41,9 +41,70 @@ installed() {
     return $?
 }
 
+_has_on_reboot() {
+    local BASHRC="${SETUP_HOME}/.bashrc"
+    grep -q "# BEGIN_ON_REBOOT VIA" "${BASHRC}"
+}
+
+_clear_on_reboot() {
+    local BASHRC="${SETUP_HOME}/.bashrc"
+
+    if [[ ! -f "${BASHRC}" ]]; then
+        abort "cannot clear reboot task without an existing ${BASHRC}"
+    fi
+
+    sed --in-place -e "/# BEGIN_ON_REBOOT VIA/,/# END_ON_REBOOT/d" "${BASHRC}" || \
+        abort "failed to clear reboot handler in ${BASHRC}"
+}
+
+_on_reboot() {
+    local BASHRC="${SETUP_HOME}/.bashrc"
+
+    if [[ ! -f "${BASHRC}" ]]; then
+        abort "cannot schedule reboot task without an existing ${BASHRC}"
+    fi
+
+    local THIS_TTY="$(tty)"
+    local TTYPE="terminal"
+    if [[ "${THIS_TTY}" =~ ^/dev/pts/.+ ]]; then
+        # Some kind of pseudo-terminal, so expect the same for running on reboot.
+        TTYPE="pseudo-terminal"
+    fi
+
+    if grep -q "# BEGIN_ON_REBOOT VIA ${TTYPE}" "${BASHRC}"; then
+        # an on-reboot step is already scheduled.
+        report "reboot already scheduled"
+        return 0
+    fi
+
+    if _has_on_reboot; then
+        # This on-reboot step is already scheduled but for a different terminal type,
+        # so clear it.
+        _clear_on_reboot
+    fi
+
+    local MATCH="^${THIS_TTY}"
+    local DESC="${THIS_TTY}"
+    if [[ "${TTYPE}" == "pseudo-terminal" ]]; then
+        MATCH="^/dev/pts/.+"
+        DESC="a pseudo-terminal"
+    fi
+
+    cat >>"${BASHRC}" << EOF
+      # BEGIN_ON_REBOOT VIA ${TTYPE}
+      if [[ "\$(tty)" =~ ${MATCH} ]]; then
+        $@
+      fi
+      # END_ON_REBOOT
+EOF
+
+    echo "scheduled reboot; logging in as ${SETUP_USER} on ${DESC} will resume configuration"
+
+    REBOOT_REQUIRED=true
+}
+
 reboot_required() {
-    # TODO
-    echo "scheduling reboot"
+    _on_reboot "\"${BDR_DIR}/setup.sh\""
 }
 
 check_stage() {
@@ -89,6 +150,16 @@ if [[ "${BDR_DIR}" != "${SCRIPT_DIR}" ]]; then
     abort "update.sh should not be run directly; use setup.sh"
 fi
 
+# We expect these to be passed in by setup.sh
+if [[ -z "${SETUP_USER}" || -z "${SETUP_HOME}" || ! -d "${SETUP_HOME}" ]]; then
+    abort "update.sh should not be run directly; use setup.sh"
+fi
+
+if _has_on_reboot; then
+    _clear_on_reboot
+fi
+
+REBOOT_REQUIRED=false
 TEST=false
 FORCE=false
 
@@ -119,8 +190,8 @@ if [ ! -t 0 ]; then
 fi
 export NOTERM
 
-SETUP_USER="${SUDO_USER:-$(who -m | awk '{ print $1 }')}"
 export SETUP_USER
+export SETUP_HOME
 
 STATE_DIR="${BDR_DIR}/state"
 mkdir -p "${STATE_DIR}" || abort "could not create state dir ${STATE_DIR}"
@@ -147,4 +218,10 @@ for STAGE in "${STAGES[@]}"; do
     source "${STAGE}"
     run_stage || abort "stage ${STAGE_NAME} failed"
     complete_stage "${STAGE_NAME}"
+
+    if "${REBOOT_REQUIRED}"; then
+        report "rebooting..."
+        shutdown -r now
+        exit 0
+    fi
 done
