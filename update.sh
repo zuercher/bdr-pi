@@ -53,7 +53,8 @@ _clear_on_reboot() {
         abort "cannot clear reboot task without an existing ${BASHRC}"
     fi
 
-    sed --in-place -e "/# BEGIN_ON_REBOOT VIA/,/# END_ON_REBOOT/d" "${BASHRC}"
+    sed --in-place -e "/# BEGIN_ON_REBOOT VIA/,/# END_ON_REBOOT/d" "${BASHRC}" || \
+        abort "failed to clear reboot handler in ${BASHRC}"
 }
 
 _on_reboot() {
