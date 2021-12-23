@@ -1,81 +1,15 @@
 #!/bin/bash
 
-# fail on unset variables
-set -u
-
-
-# push_dir <dir> invokes pushd and aborts the script on error.
-push_dir() {
-    pushd "${1}" >/dev/null || abort "could not change to ${1}"
-}
-
-# pop_dir invokes popd and aborts the script on error.
-pop_dir() {
-    popd >/dev/null || abort "could not pop dir"
-}
-
-# installed <app> returns success if the given app is on the PATH.
-installed() {
-    local BINARY="$1"
-    hash "${BINARY}" 2> /dev/null
-    return $?
-}
-
-# perror prints its arguments to stderr.
-perror() {
-    printf "%s\n" "$@" >/dev/stderr
-    return 0
-}
-
-# abort prints its arguments and quits
-abort() {
-    perror "$@"
-    exit 1
-}
-
-# report prints annotated stage output to stdout (or if no STAGE_NAME
-# is set, just its arguments)
-report() {
-    if [[ -n "${STAGE_NAME}" ]]; then
-        printf "  %s: %s\n" "${STAGE_NAME}" "$@"
-    else
-        printf "%s\n" "$@"
-    fi
-}
-
-# prompt_default $1=default-value $2...=prompt
-#   prompts the user and returns a default value if they provide no
-#   reason
-prompt_default() {
-    local ANSWER
-    local DEFAULT="$1"
-    shift
-
-    read -er -p "$* [${DEFAULT}]: " ANSWER
-    if [ -z "${ANSWER}" ]; then
-        ANSWER="${DEFAULT}"
-    fi
-    echo "${ANSWER}"
-}
-
-# prompt $1...=prompt
-#   prompts the user and returns their response, which may be empty
-prompt() {
-    local ANSWER
-
-    read -er -p "$*: " ANSWER
-    echo "${ANSWER}"
-}
-
-# prompt_pw $1...=prompt
-#   prompts the user with terminal echo disabled and returns their
-#   response, which may be empty
-prompt_pw() {
-    local ANSWER
-
-    read -ers -p "$*: " ANSWER
-    echo "${ANSWER}"
-}
+#{{begin_exclude}}#
+if [[ -n "${_NETWORK_SH_INCLUDED}" ]]; then
+    return
+fi
+_NETWORK_SH_INCLUDED=1
+_NETWORK_SH="${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}"
+_NETWORK_LIB_DIR="$(cd "$(dirname "${_NETWORK_SH}")" )"
+source "${_NETWORK_LIB_DIR}/io.sh"
+source "${_NETWORK_LIB_DIR}/fs.sh"
+#{{end_exclude}}#
 
 # network_can_reach <url> tests if the current network can reach the
 # given URL.
@@ -263,72 +197,3 @@ wireless_network_setup() {
 
     return 0
 }
-
-# Require bash
-# shellcheck disable=SC2292
-if [ -z "${BASH_VERSION:-}" ]; then
-    abort "bash is required to interpret this script."
-fi
-
-OS="$(uname)"
-if [[ "$OS" != "Linux" ]]; then
-    abort "OS is ${OS} -- this isn't going to work out."
-fi
-
-DISTRIBUTION="$(lsb_release -si)"
-if [[ "$DISTRIBUTION" != "Raspbian" ]]; then
-    echo "Expected a Raspbian distribution, but we'll muddle on..."
-fi
-
-REPO="https://github.com/zuercher/bdr-pi"
-BDR_DIR="${HOME}/.bdr-pi"
-
-if ! network_can_reach "${REPO}"; then
-    perror "error checking ${REPO}, starting wifi setup..."
-    wireless_network_setup
-
-    N=0
-    while ! network_can_reach "${REPO}"; do
-        N=$((N + 1))
-        if [[ "${N}" -ge 60 ]]; then
-            abort "been waiting for ${SSID} for 60 seconds, something's fucky"
-        fi
-
-        report "still cannot reach ${REPO}"
-        sleep 1
-    done
-fi
-
-# Check if git is installed.
-if ! installed git; then
-    # Nope. Tallyho!
-    echo "installing git"
-    sudo apt-get -y install git
-    hash -r
-
-    if ! installed git; then
-        abort "tried to install git, but still can't find it on the path"
-    fi
-fi
-
-REPO="https://github.com/zuercher/bdr-pi"
-BDR_DIR="${HOME}/.bdr-pi"
-if [[ -d "${BDR_DIR}/.git" ]]; then
-    # Git repository is present. Let's update it.
-    push_dir "${BDR_DIR}"
-    echo -n "${REPO} "
-    git pull || abort "unable to pull $(git remote get-url origin)"
-    pop_dir
-else
-    # No git repository. Clone it.
-    git clone "${REPO}" "${BDR_DIR}" || abort "unable to clone ${REPO}"
-    push_dir "${BDR_DIR}"
-    # So it doesn't complain every time we pull
-    git config pull.ff only
-    pop_dir
-fi
-
-mkdir -p "${BDR_DIR}/state" || abort "could not create state dir"
-
-# Initial setup is complete, now transfer control to the code in BDR_DIR
-sudo SETUP_USER="${USER}" SETUP_HOME="${HOME}" BDR_DIR="${BDR_DIR}" "${BDR_DIR}/update.sh" "$@"
