@@ -6,7 +6,7 @@ if [[ -n "${_NETWORK_SH_INCLUDED}" ]]; then
 fi
 _NETWORK_SH_INCLUDED=1
 _NETWORK_SH="${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}"
-_NETWORK_LIB_DIR="$(cd "$(dirname "${_NETWORK_SH}")" )"
+_NETWORK_LIB_DIR="$(cd "$(dirname "${_NETWORK_SH}")" && pwd)"
 source "${_NETWORK_LIB_DIR}/io.sh"
 source "${_NETWORK_LIB_DIR}/fs.sh"
 #{{end_exclude}}#

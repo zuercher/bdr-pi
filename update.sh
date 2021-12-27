@@ -27,11 +27,12 @@ if reboot_configured; then
     reboot_clear
 fi
 
-FORCE=false
+source "${SCRIPT_DIR}/lib/stages.sh"
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --force)
-            FORCE=true
+            stage_force_all
             ;;
         *)
             abort "unknown argument $1"
@@ -43,35 +44,4 @@ done
 export SETUP_USER
 export SETUP_HOME
 
-STATE_DIR="${BDR_DIR}/state"
-mkdir -p "${STATE_DIR}" || abort "could not create state dir ${STATE_DIR}"
-
-declare -a STAGES
-while IFS= read -r STAGE; do
-    STAGES+=("$STAGE")
-done < <(find "${BDR_DIR}/stages" -type f -print | sort)
-
-if [[ "${#STAGES[@]}" == 0 ]]; then
-    abort "no installation stages found"
-fi
-
-for STAGE in "${STAGES[@]}"; do
-    STAGE_NAME="$(basename -s .sh "${STAGE}")"
-
-    if check_stage "${STAGE_NAME}"; then
-        echo "skipping ${STAGE_NAME}, already complete"
-        continue
-    fi
-
-    start_stage "${STAGE_NAME}"
-    # shellcheck disable=SC1090
-    source "${STAGE}"
-    run_stage || abort "stage ${STAGE_NAME} failed"
-    complete_stage "${STAGE_NAME}"
-
-    if "${REBOOT_REQUIRED}"; then
-        report "rebooting..."
-        shutdown -r now
-        exit 0
-    fi
-done
+stage_run

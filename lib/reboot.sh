@@ -6,7 +6,7 @@ if [[ -n "${_REBOOT_SH_INCLUDED}" ]]; then
 fi
 _REBOOT_SH_INCLUDED=1
 _REBOOT_SH="${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}"
-_REBOOT_LIB_DIR="$(cd "$(dirname "${_REBOOT_SH}")" )"
+_REBOOT_LIB_DIR="$(cd "$(dirname "${_REBOOT_SH}")" && pwd)"
 source "${_REBOOT_LIB_DIR}/io.sh"
 #{{end_exclude}}#
 
