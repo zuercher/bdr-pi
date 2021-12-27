@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #{{begin_exclude}}#
-if [[ -n "${_NETWORK_SH_INCLUDED}" ]]; then
+if [[ -n "${_NETWORK_SH_INCLUDED:-}" ]]; then
     return
 fi
 _NETWORK_SH_INCLUDED=1

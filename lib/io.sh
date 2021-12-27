@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #{{begin_exclude}}#
-if [[ -n "${_IO_SH_INCLUDED}" ]]; then
+if [[ -n "${_IO_SH_INCLUDED:-}" ]]; then
     return
 fi
 _IO_SH_INCLUDED=1
