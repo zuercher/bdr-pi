@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #/# Scans the input for comments of the form:
-#/#   #{{include file.sh}}
+#/#   #{{include file.sh}}#
 #/# and substitutes the contents of lib/file.sh into the input and
 #/# writes the modified file as the output. If lib/file.sh contains
 #/# lines book-ended with:
-#/#   #{{begin_exclude}}
-#/#   #{{end_exclude}}
+#/#   #{{begin_exclude}}#
+#/#   #{{end_exclude}}#
 #/# those lines are not copied into the output.
 usage() {
     echo "usage: $0 <input> <output>"
