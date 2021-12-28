@@ -1,7 +1,6 @@
 #!/bin/bash
 
 run_stage() {
-
     if grep -q -E "^gpu_mem=256$" /boot/config.txt; then
         report "gpu_mem already set to 256 MB, skipping"
         return 0
