@@ -24,7 +24,6 @@ run_stage() {
     local HIGH_PRIO_SSIDS
     declare -a DEFAULT_PRIO_SSIDS
     declare -a HIGH_PRIO_SSIDS
-    local NUM_IDS=0
     local ID
     for ID in $(wireless_list_network_ids); do
         DESC=$(wireless_describe_network "${ID}")
@@ -38,21 +37,39 @@ run_stage() {
         else
             HIGH_PRIO_SSIDS+=("${SSID}")
         fi
-        NUM_IDS=$((NUM_IDS + 1))
     done
 
-    if [[ "${NUM_IDS}" -gt 0 ]]; then
-        report "found existing wireless networks:"
-        report "  default priority:"
+    report "configured wireless networks:"
+    report "  default priority:"
+    if [[ "${#DEFAULT_PRIO_SSIDS[@]}" -gt 0 ]]; then
         for ID in "${DEFAULT_PRIO_SSIDS[@]}"; do
             report "    ${ID}"
         done
+    else
+        report "    <none>"
+    fi
+
+    if [[ "${#HIGH_PRIO_SSIDS[@]}" -gt 0 ]]; then
         report "  high priority:"
         for ID in "${HIGH_PRIO_SSIDS[@]}"; do
             report "    ${ID}"
         done
+    else
+        report "    <none>"
     fi
 
+    echo "use default priority SSIDs as backup networks (e.g. PAWDF wifi)"
+    while true; do
+        local RESP
+        RESP="$(prompt "add a default priority SSID? [y/N]") | tr '[:lower]' '[:upper:]'"
+        if [[ "${RESP}" != "Y" ]] && [[ "${RESP}" != "YES" ]]; then
+            break
+        fi
+
+        wireless_add_network 0
+    done
+
+    echo "use high priority SSIDs as primary networks (e.g. the car's wifi)"
     while true; do
         local RESP
         RESP="$(prompt "add a high priority SSID? [y/N]") | tr '[:lower]' '[:upper:]'"
