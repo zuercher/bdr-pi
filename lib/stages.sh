@@ -80,7 +80,7 @@ stage_run() {
     done < <(_stage_list)
 
     for _STAGE in "${_STAGES[@]}"; do
-        STAGE_NAME="$(stage_name "${_STAGE}")"
+        STAGE_NAME="$(_stage_name "${_STAGE}")"
 
         if _stage_check "${STAGE_NAME}"; then
             echo "skipping ${STAGE_NAME}, already complete"
