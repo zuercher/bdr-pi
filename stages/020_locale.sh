@@ -16,4 +16,6 @@ run_stage() {
     echo "${LOCALE} ${ENCODING}" > /etc/locale.gen
     sed -i "s/^\s*LANG=\S*/LANG=${LOCALE}/" /etc/default/locale
     dpkg-reconfigure -f noninteractive locales
+
+    export LANG="${LOCALE}"
 }
