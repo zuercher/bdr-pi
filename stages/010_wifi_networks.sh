@@ -47,8 +47,8 @@ run_stage() {
         report "    <none>"
     fi
 
+    report "  high priority:"
     if [[ "${#HIGH_PRIO_SSIDS[@]}" -gt 0 ]]; then
-        report "  high priority:"
         for ID in "${HIGH_PRIO_SSIDS[@]}"; do
             report "    ${ID}"
         done
