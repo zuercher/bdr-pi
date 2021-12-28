@@ -5,7 +5,14 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" || exit; pwd)"
 
-source "${SCRIPT_DIR}/lib/io.sh"
+for LIB in "${SCRIPT_DIR}/lib"/*.sh; do
+    # shellcheck source=lib/fs.sh
+    # shellcheck source=lib/io.sh
+    # shellcheck source=lib/network.sh
+    # shellcheck source=lib/reboot.sh
+    # shellcheck source=lib/stages.sh
+    source "${LIB}"
+done
 
 if [[ "${BDR_DIR}" != "${SCRIPT_DIR}" ]]; then
     abort "update.sh should not be run directly; use setup.sh"
@@ -21,13 +28,9 @@ if [ ! -t 0 ]; then
     abort "scripts must be run from a terminal (use bash -c \"$(curl ...)\" instead of curl ... | bash)"
 fi
 
-source "${SCRIPT_DIR}/lib/reboot.sh"
-
 if reboot_configured; then
     reboot_clear
 fi
-
-source "${SCRIPT_DIR}/lib/stages.sh"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
