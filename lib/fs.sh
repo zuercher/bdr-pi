@@ -5,7 +5,7 @@ if [[ -n "${_FS_SH_INCLUDED:-}" ]]; then
     return
 fi
 _FS_SH_INCLUDED=1
-_FS_SH="${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}"
+_FS_SH="${BASH_SOURCE[0]}"
 _FS_LIB_DIR="$(cd "$(dirname "${_FS_SH}")" && pwd)"
 source "${_FS_LIB_DIR}/io.sh"
 #{{end_exclude}}#

@@ -5,7 +5,7 @@ if [[ -n "${_REBOOT_SH_INCLUDED:-}" ]]; then
     return
 fi
 _REBOOT_SH_INCLUDED=1
-_REBOOT_SH="${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}"
+_REBOOT_SH="${BASH_SOURCE[0]}"
 _REBOOT_LIB_DIR="$(cd "$(dirname "${_REBOOT_SH}")" && pwd)"
 source "${_REBOOT_LIB_DIR}/io.sh"
 #{{end_exclude}}#
@@ -37,7 +37,8 @@ _on_reboot() {
         abort "cannot schedule reboot task without an existing ${BASHRC}"
     fi
 
-    local THIS_TTY="$(tty)"
+    local THIS_TTY
+    THIS_TTY="$(tty)"
     local TTYPE="terminal"
     if [[ "${THIS_TTY}" =~ ^/dev/pts/.+ ]]; then
         # Some kind of pseudo-terminal, so expect the same for running on reboot.
@@ -76,6 +77,14 @@ EOF
     REBOOT_REQUIRED=true
 }
 
+# reboot_required triggers a reboot and arranges for setup.sh to be
+# run again on login.
 reboot_required() {
     _on_reboot "\"${BDR_DIR}/setup.sh\""
+}
+
+# reboot_is_required indicates if a reboot is required
+# (e.g. reboot_required was called).
+reboot_is_required() {
+    "${REBOOT_REQUIRED}"
 }

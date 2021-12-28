@@ -5,7 +5,7 @@ if [[ -n "${_STAGES_SH_INCLUDED:-}" ]]; then
     return
 fi
 _STAGES_SH_INCLUDED=1
-_STAGES_SH="${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}"
+_STAGES_SH="${BASH_SOURCE[0]}"
 _STAGES_LIB_DIR="$(cd "$(dirname "${_STAGES_SH}")" && pwd)"
 source "${_STAGES_LIB_DIR}/io.sh"
 source "${_STAGES_LIB_DIR}/reboot.sh"
@@ -94,7 +94,7 @@ stage_run() {
         run_stage || abort "stage ${STAGE_NAME} failed"
         _stage_complete "${STAGE_NAME}"
 
-        if "${REBOOT_REQUIRED}"; then
+        if reboot_is_required; then
             report "rebooting..."
             shutdown -r now
             exit 0
