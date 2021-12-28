@@ -2,7 +2,7 @@ x change default password
 x autologin
 x wifi country
 x wifi ssid -> get passwords
-- default locale?
+x default locale?
 - gpu mem to 256
 - enable ssh + run ssh-add + put ssh-add into startup?
 - Select OpenGL desktop driver with fake KMS
