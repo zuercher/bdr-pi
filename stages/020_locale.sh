@@ -3,6 +3,8 @@
 run_stage() {
     local LOCALE="${BDRPI_WIFI_COUNTRY:-en_US.UTF-8}"
 
+    report "setting locale to ${LOCALE}"
+
     local LOCALE_LINE
     if ! LOCALE_LINE="$(grep "^${LOCALE} " /usr/share/i18n/SUPPORTED)"; then
         abort "cannot find '${LOCALE}' in supported locales"
