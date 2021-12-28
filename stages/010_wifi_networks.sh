@@ -20,10 +20,8 @@ run_stage() {
         abort "wireless device regulatory config failed, good luck!"
     fi
 
-    local DEFAULT_PRIO_SSIDS
-    local HIGH_PRIO_SSIDS
-    declare -a DEFAULT_PRIO_SSIDS
-    declare -a HIGH_PRIO_SSIDS
+    local DEFAULT_PRIO_SSIDS=()
+    local HIGH_PRIO_SSIDS=()
     local ID
     for ID in $(wireless_list_network_ids); do
         DESC=$(wireless_describe_network "${ID}")
