@@ -5,9 +5,9 @@ x wifi ssid -> get passwords
 x default locale?
 x gpu mem to 256
 x enable ssh + run ssh-add + put ssh-add into startup?
-- Select OpenGL desktop driver with fake KMS
+x select OpenGL desktop driver with fake KMS
   * raspi-config do_gldriver "G2"
-  * needs rebooted (automate?)
+  * needs rebooted
 - sudo apt-get install mesa-utils libgles2 libegl1-mesa libegl-mesa0
 - sudo adduser pi render
 - sudo apt-get install mtdev-tools
