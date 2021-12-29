@@ -9,7 +9,7 @@ run_stage() {
     local CONFIG=/boot/config.txt
 
     if sed -n "/\[pi4\]/,/\[/ !p" "${CONFIG}" | grep -q "^dtoverlay=vc4-kms-v3d" ; then
-        report "OpenGL desktop driver with KMS already enabled, skipping"
+        report "OpenGL desktop driver with KMS already selected, skipping"
         return 0
     fi
 
