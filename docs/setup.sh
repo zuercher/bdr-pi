@@ -187,14 +187,25 @@ wireless_device_setup() {
     return ${RC}
 }
 
-# wireless_add_network $1=priority adds a single SSID to the network
-# configuration with the given priority (0 is lowest).
+# wireless_add_network $1=priority $2=[skippable] adds a single SSID
+# to the network configuration with the given priority (0 is lowest).
+# If any second argument is given, returns success if no SSID is
+# specified.
 wireless_add_network() {
     local PRIORITY="$1"
-
+    local SKIPPABLE=false
+    local SSID_PROMPT="Wireless SSID"
+    if [[ $# -gt 1 ]]; then
+        SKIPPABLE=true
+        SSID_PROMPT="Wireless SSID (empty to skip)"
+    fi
     local SSID=""
     while [[ -z "${SSID}" ]]; do
-        SSID=$(prompt "Wireless SSID")
+        SSID=$(prompt "${SSID_PROMPT}")
+        if "${SKIPPABLE}" && [[ -z "${SSID}" ]]; then
+            report "trying to continue with existing network config, good luck!"
+            return 0
+        fi
     done
     local PSK=""
     while [[ -z "${PSK}" ]]; do
@@ -261,7 +272,7 @@ wireless_network_setup() {
     fi
 
     report "adding low-priority wireless network for set-up..."
-    wireless_add_network 0
+    wireless_add_network 0 skippable
 
     return 0
 }
