@@ -1,7 +1,7 @@
 #!/bin/bash
 
 run_stage() {
-    local LOCALE="${BDRPI_WIFI_COUNTRY:-en_US.UTF-8}"
+    local LOCALE="${BDRPI_LOCALE:-en_US.UTF-8}"
 
     report "setting locale to ${LOCALE}"
 
