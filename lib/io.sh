@@ -22,7 +22,7 @@ abort() {
 # report prints annotated stage output to stdout (or if no STAGE_NAME
 # is set, just its arguments)
 report() {
-    if [[ -n "${STAGE_NAME}" ]]; then
+    if [[ -n "${STAGE_NAME:-}" ]]; then
         printf "  %s: %s\n" "${STAGE_NAME}" "$@"
     else
         printf "%s\n" "$@"

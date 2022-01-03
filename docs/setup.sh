@@ -36,7 +36,7 @@ abort() {
 # report prints annotated stage output to stdout (or if no STAGE_NAME
 # is set, just its arguments)
 report() {
-    if [[ -n "${STAGE_NAME}" ]]; then
+    if [[ -n "${STAGE_NAME:-}" ]]; then
         printf "  %s: %s\n" "${STAGE_NAME}" "$@"
     else
         printf "%s\n" "$@"
@@ -159,8 +159,6 @@ wireless_disable_rfkill() {
 wireless_device_setup() {
     local COUNTRY="${BDRPI_WIFI_COUNTRY:-US}"
 
-    report "setting wireless country to ${COUNTRY}"
-
     local IFACE
     IFACE="$(wireless_first_interface)"
     [[ -z "${IFACE}" ]] && abort "no wireless interface found"
@@ -168,6 +166,7 @@ wireless_device_setup() {
     wireless_wpa_check "${IFACE}" || exit 1
 
     if [[ "$(wireless_wpa_get_country "${IFACE}" )" != "${COUNTRY}" ]]; then
+        report "setting wireless country to ${COUNTRY}"
         wireless_wpa_set_country "${IFACE}" "${COUNTRY}"
     else
         report "wpa_cli country is already ${COUNTRY}, skipping"
@@ -175,6 +174,7 @@ wireless_device_setup() {
 
     RC=0
     if [[ "$(wireless_reg_get_country)" != "${COUNTRY}" ]]; then
+        report "setting wireless device regulatory country to ${COUNTRY}"
         wireless_reg_set_country "${COUNTRY}"
         # we need to reboot now, apparently
         RC=10
@@ -187,7 +187,8 @@ wireless_device_setup() {
     return ${RC}
 }
 
-# wireless_add_network [priority] adds a single SSID to the network configuration.
+# wireless_add_network $1=priority adds a single SSID to the network
+# configuration with the given priority (0 is lowest).
 wireless_add_network() {
     local PRIORITY="$1"
 
@@ -241,7 +242,7 @@ wireless_add_network() {
     return 0
 }
 
-# wireless_network_setup queries the user for an SAID and password
+# wireless_network_setup queries the user for an SSID and password
 # and configures them via wpa_cli.
 wireless_network_setup() {
     local IFACE
@@ -253,15 +254,46 @@ wireless_network_setup() {
     wireless_device_setup
     local RC=$?
     if [[ "${RC}" == 10 ]]; then
-        report "wireless device regulatory config changed; please reboot"
+        report "wireless device regulatory config changed; please reboot and re-run script"
         exit 0
     elif [[ "${RC}" != 0 ]]; then
         abort "wireless device regulatory config failed, good luck!"
     fi
 
+    report "adding low-priority wireless network for set-up..."
     wireless_add_network 0
 
     return 0
+}
+
+# wireless_list_networks returns the WPA ids for configured networks.
+wireless_list_network_ids() {
+    local IFACE
+    IFACE="$(wireless_first_interface)"
+    [[ -z "${IFACE}" ]] && abort "no wireless interface found"
+
+    wpa_cli -i "${IFACE}" list_networks | tail -n +2 | cut -f 1
+}
+
+# wireless_describe_network $1=id returns a string with the network's
+# priority, a colon, and the network's SSID. (e.g. 5:my_network)
+wireless_describe_network() {
+    local ID="$1"
+
+    local IFACE
+    IFACE="$(wireless_first_interface)"
+    [[ -z "${IFACE}" ]] && abort "no wireless interface found"
+
+    local PRIO
+    PRIO="$(wpa_cli -i "${IFACE}" get_network "${ID}" priority)"
+    if [[ "${PRIO}" == "FAIL" ]]; then
+        return 1
+    fi
+
+    local SSID
+    SSID="$(wpa_cli -i "${IFACE}" get_network "${ID}" ssid | tr -d '"')"
+
+    echo "${PRIO}:${SSID}"
 }
 
 # Require bash
