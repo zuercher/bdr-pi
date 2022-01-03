@@ -27,19 +27,33 @@ REPO="https://github.com/zuercher/bdr-pi"
 BDR_DIR="${HOME}/.bdr-pi"
 
 if ! network_can_reach "${REPO}"; then
-    perror "error checking ${REPO}, starting wifi setup..."
-    wireless_network_setup
-
+    perror "unable to reach ${REPO}, retrying for 30 seconds..."
     N=0
-    while ! network_can_reach "${REPO}"; do
+    NETWORK_OK=false
+    while [[ "${N}" -lt 30 ]] && ! "${NETWORK_OK}"; do
         N=$((N + 1))
-        if [[ "${N}" -ge 60 ]]; then
-            abort "been waiting for ${SSID} for 60 seconds, something's fucky"
-        fi
-
-        report "still cannot reach ${REPO}"
         sleep 1
+
+        if network_can_reach "${REPO}"; then
+            NETWORK_OK="true"
+        fi
     done
+
+    if ! "${NETWORK_OK}"; then
+        perror "failed to reach ${REPO}, starting wifi setup..."
+        wireless_network_setup
+
+        N=0
+        while ! network_can_reach "${REPO}"; do
+            N=$((N + 1))
+            if [[ "${N}" -ge 60 ]]; then
+                abort "been waiting for ${SSID} for 60 seconds, something's fucky"
+            fi
+
+            report "still cannot reach ${REPO}"
+            sleep 1
+        done
+    fi
 fi
 
 # Check if git is installed.
