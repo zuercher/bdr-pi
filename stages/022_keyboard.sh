@@ -6,6 +6,7 @@ run_stage() {
     local CONFIG="/etc/default/keyboard"
 
     if grep -q -F "XKBLAYOUT=\"${LAYOUT}\"" "${CONFIG}"; then
+        report "keyboard layout is already ${LAYOUT}"
         return 0
     fi
 
