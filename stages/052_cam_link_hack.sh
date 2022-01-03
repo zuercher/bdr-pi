@@ -3,7 +3,7 @@
 run_stage() {
     local CONFIG="/boot/config.txt"
 
-    if grep -q "[EGA_Cam_Link_4K]" "${CONFIG}"; then
+    if grep -q -F "[EGA_Cam_Link_4K]" "${CONFIG}"; then
         return 0
     fi
 
