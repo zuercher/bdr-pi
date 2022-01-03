@@ -6,7 +6,7 @@ run_stage() {
     local PKGS=(gldriver-test libgl1-mesa-dri)
     apt-get install -y "${PKGS[@]}" || abort "unable to install opengl packages: ${PKGS[*]}"
 
-    local CONFIG=/boot/config.txt
+    local CONFIG="/boot/config.txt"
 
     if sed -n "/\[pi4\]/,/\[/ !p" "${CONFIG}" | grep -q "^dtoverlay=vc4-kms-v3d" ; then
         report "OpenGL desktop driver with KMS already selected, skipping"
