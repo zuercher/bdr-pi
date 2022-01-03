@@ -6,6 +6,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" || exit; pwd)"
 
 for LIB in "${SCRIPT_DIR}/lib"/*.sh; do
+    # shellcheck source=lib/boot_config.sh
     # shellcheck source=lib/fs.sh
     # shellcheck source=lib/io.sh
     # shellcheck source=lib/network.sh
