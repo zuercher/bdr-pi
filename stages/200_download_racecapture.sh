@@ -17,9 +17,13 @@ run_stage() {
     )
     apt-get install -y "${PKGS[@]}" || abort "unable to install packages: ${PKGS[*]}"
 
+    push_dir "${SETUP_HOME}"
+
     # perform these actions as the setup user to keep the permissions correct
     sudo -u "${SETUP_USER}" wget "${RC_URL}" || abort "unable to download ${RC_URL}"
-    sudo -u "${SETUP_USER}" tar xfJ "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
+    sudo -u "${SETUP_USER}" tar xfj "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
 
     [[ -d "${SETUP_HOME}/racecapture" ]] || abort "missing ${SETUP_HOME}/racecapture directory"
+
+    pop_dir
 }
