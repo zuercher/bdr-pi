@@ -82,7 +82,9 @@ wireless_disable_rfkill() {
     if installed rfkill; then
         rfkill unblock wifi
         for filename in /var/lib/systemd/rfkill/*:wlan; do
-            echo 0 > "${filename}"
+            # This may be run from setup.sh at which point we're not root, so
+            # use sudo to make sure the write succeeds.
+            echo 0 | sudo tee "${filename}"
         done
     fi
 }
