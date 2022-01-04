@@ -7,7 +7,7 @@ run_stage() {
     local SCRIPT_TMPL="${BDR_DIR}/resources/${FILE}"
     local SCRIPT_TARGET="${SETUP_HOME}/${FILE}"
 
-    local ESCAPED_HOME="${SETUP_HOME//\//\\\/}}"
+    local ESCAPED_HOME="${SETUP_HOME//\//\\\/}"
 
     if ! sed -e "s/{{SETUP_HOME}}/${ESCAPED_HOME}/g" "${SCRIPT_TMPL}" >"${SCRIPT_TARGET}"; then
         abort "error preparing ${SCRIPT_TARGET}"
