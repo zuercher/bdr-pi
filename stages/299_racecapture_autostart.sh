@@ -7,7 +7,9 @@ run_stage() {
     local SCRIPT_TMPL="${BDR_DIR}/resources/${FILE}"
     local SCRIPT_TARGET="${SETUP_HOME}/${FILE}"
 
-    if ! sed -e "s/{{SETUP_HOME}}/${SETUP_HOME}/g" "${SCRIPT_TMPL}" >"${SCRIPT_TARGET}"; then
+    local ESCAPED_HOME="${SETUP_HOME$//\//\\\/}}"
+
+    if ! sed -e "s/{{SETUP_HOME}}/${ESCAPED_HOME}/g" "${SCRIPT_TMPL}" >"${SCRIPT_TARGET}"; then
         abort "error preparing ${SCRIPT_TARGET}"
     fi
 
@@ -19,6 +21,9 @@ run_stage() {
         "${SCRIPT_TARGET}"
       fi
 EOF
+
+    chown "${SETUP_USER}:${SETUP_USER}" "${SCRIPT_TARGET}"
+    chmod a+x "${SCRIPT_TARGET}"
 
     report "configured execution of racecapture on login to /dev/tty1"
 }
