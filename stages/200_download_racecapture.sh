@@ -19,8 +19,11 @@ run_stage() {
 
     push_dir "${SETUP_HOME}"
 
-    # perform these actions as the setup user to keep the permissions correct
+    rm -f "${RC_FILE}"
+
+    # download and extract as the setup user to keep the permissions correct
     sudo -u "${SETUP_USER}" wget "${RC_URL}" || abort "unable to download ${RC_URL}"
+    report "extracting ${RC_FILE}"
     sudo -u "${SETUP_USER}" tar xfj "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
 
     [[ -d "${SETUP_HOME}/racecapture" ]] || abort "missing ${SETUP_HOME}/racecapture directory"
