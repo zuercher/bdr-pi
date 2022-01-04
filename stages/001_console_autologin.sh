@@ -11,6 +11,11 @@ is_boot_cli() {
 }
 
 run_stage() {
+    if [[ "${SETUP_USER}" == "root" ]]; then
+        report "skipping auto-login since the setup user is root"
+        return 0
+    fi
+
     if ! is_boot_cli; then
         report "default to multi-user.target"
         systemctl set-default multi-user.target
