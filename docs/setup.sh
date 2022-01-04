@@ -323,6 +323,10 @@ if [[ "$DISTRIBUTION" != "Raspbian" ]]; then
     echo "Expected a Raspbian distribution, but we'll muddle on..."
 fi
 
+if [[ "$(whoami)" == "root" ]]; then
+    abort "run this as a normal user with access to sudo"
+fi
+
 REPO="https://github.com/zuercher/bdr-pi"
 BDR_DIR="${HOME}/.bdr-pi"
 
@@ -343,6 +347,8 @@ if ! network_can_reach "${REPO}"; then
         perror "failed to reach ${REPO}, starting wifi setup..."
         wireless_network_setup
 
+        report "wireless setup complete; waiting for the internet to become reachable..."
+
         N=0
         while ! network_can_reach "${REPO}"; do
             N=$((N + 1))
@@ -350,7 +356,6 @@ if ! network_can_reach "${REPO}"; then
                 abort "been waiting for ${SSID} for 60 seconds, something's fucky"
             fi
 
-            report "still cannot reach ${REPO}"
             sleep 1
         done
     fi
