@@ -16,6 +16,14 @@ RC_DIR="${DIR}/racecapture"
 LOG_DIR="${DIR}/logs"
 KIVY_DIR="${DIR}/.kivy"
 
+if lsmod | grep -q "rpi_ft5406"; then
+    # set up for the rpi display
+    cp -n "${RC_DIR}/ft5406_kivy_config.ini" "${KIVY_DIR}/config.ini"
+else
+    # let it auto-configure for other displays/inputs
+    rm -f "${KIVY_DIR}/config.ini"
+fi
+
 # Configure keyring to store Podium user credentials
 export PYTHON_KEYRING_BACKEND=sagecipher.keyring.Keyring
 killall ssh-agent &>/dev/null
