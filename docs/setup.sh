@@ -399,6 +399,10 @@ mkdir -p "${BDR_DIR}/logs" || abort "could not create log dir"
 SETUP_LOGFILE="${BDR_DIR}/logs/setup_$(date -u "+%Y%m%d_%H%M%S").log"
 
 # Initial setup is complete, now transfer control to the code in BDR_DIR
-sudo SETUP_USER="${USER}" \
-     SETUP_HOME="${HOME}" \
-     BDR_DIR="${BDR_DIR}" "${BDR_DIR}/update.sh" "$@" 2>&1 | tee -a "${SETUP_LOGFILE}"
+script --quiet --append --log-out "${SETUP_LOGFILE}" \
+       --command \
+       "sudo \
+            SETUP_USER='${USER}' \
+            SETUP_HOME='${HOME}' \
+            BDR_DIR='${BDR_DIR}' \
+            '${BDR_DIR}/update.sh' $*"
