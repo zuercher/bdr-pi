@@ -22,7 +22,7 @@ run_stage() {
     rm -f "${RC_FILE}"
 
     # download and extract as the setup user to keep the permissions correct
-    sudo -u "${SETUP_USER}" wget "${RC_URL}" || abort "unable to download ${RC_URL}"
+    sudo -u "${SETUP_USER}" wget --no-verbose "${RC_URL}" || abort "unable to download ${RC_URL}"
     report "extracting ${RC_FILE}"
     sudo -u "${SETUP_USER}" tar xfj "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
 
