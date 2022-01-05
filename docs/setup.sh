@@ -150,7 +150,7 @@ wireless_disable_rfkill() {
         for filename in /var/lib/systemd/rfkill/*:wlan; do
             # This may be run from setup.sh at which point we're not root, so
             # use sudo to make sure the write succeeds.
-            echo 0 | sudo tee "${filename}"
+            echo 0 | sudo tee "${filename}" >/dev/null
         done
     fi
 }
@@ -212,6 +212,7 @@ wireless_add_network() {
     local PSK=""
     while [[ -z "${PSK}" ]]; do
         PSK=$(prompt_pw "Wireless passphrase for ${SSID}")
+        echo
     done
 
     wpa_cli -i "${IFACE}" list_networks \
@@ -355,7 +356,7 @@ if ! network_can_reach "${REPO}"; then
         while ! network_can_reach "${REPO}"; do
             N=$((N + 1))
             if [[ "${N}" -ge 60 ]]; then
-                abort "been waiting for ${SSID} for 60 seconds, something's fucky"
+                abort "failed to reach ${REPO} for 60 seconds, something's fucky"
             fi
 
             sleep 1

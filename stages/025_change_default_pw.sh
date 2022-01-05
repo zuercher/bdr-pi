@@ -18,6 +18,7 @@ run_stage() {
             report "didn't find sshd after 30 seconds, giving up"
             break
         fi
+        sleep 1
     done
 
     if ! "${SSH_RUNNING}"; then
