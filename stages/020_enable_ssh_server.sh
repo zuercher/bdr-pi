@@ -12,6 +12,10 @@ run_stage() {
         ssh-keygen -A || abort "error generating host keys"
         update-rc.d ssh enable || abort "unable to enable ssh service"
         invoke-rc.d ssh start || abort "unable to start ssh service"
+
+        # We want to look for /run/sshwarn in a later stage but can't reliably tell
+        # if it's been long enough to expect its presence. Rebooting works, though.
+        reboot_required
     else
         report "ssh service already active, skipping"
     fi
