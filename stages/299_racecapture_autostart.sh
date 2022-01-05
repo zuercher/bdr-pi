@@ -32,7 +32,7 @@ run_stage() {
           "${SCRIPT_TARGET}"
         fi
       fi
-      # END_RCAP_START
+      # ${END_FLAG}
 EOF
 
     chown "${SETUP_USER}:${SETUP_USER}" "${SCRIPT_TARGET}"
