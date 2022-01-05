@@ -95,7 +95,9 @@ stage_run() {
         _stage_complete "${STAGE_NAME}"
 
         if reboot_is_required; then
-            report "rebooting..."
+            # shellcheck disable=2162
+            read -t 5 -p "rebooting in 5s (press ENTER to reboot immediately) " || echo
+            report "rebooting now"
             shutdown -r now
             exit 0
         fi
