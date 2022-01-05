@@ -12,7 +12,7 @@ source "${_STAGES_LIB_DIR}/reboot.sh"
 #{{end_exclude}}#
 
 _FORCE_STAGES=false
-_STATE_DIR="${BDR_DIR}/state"
+_STATE_DIR="${BDR_DIR}/.state"
 
 # stage_force_all forces all stages to be executed even if the state
 # directory indicates it's already been run.
