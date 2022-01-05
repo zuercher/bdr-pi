@@ -84,7 +84,7 @@ wireless_disable_rfkill() {
         for filename in /var/lib/systemd/rfkill/*:wlan; do
             # This may be run from setup.sh at which point we're not root, so
             # use sudo to make sure the write succeeds.
-            echo 0 | sudo tee "${filename}"
+            echo 0 | sudo tee "${filename}" >/dev/null
         done
     fi
 }
