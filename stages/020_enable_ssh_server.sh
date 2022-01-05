@@ -11,7 +11,7 @@ run_stage() {
         report "OK: enabling SSH server"
         ssh-keygen -A || abort "error generating host keys"
         update-rc.d ssh enable || abort "unable to enable ssh service"
-        update-rc.d ssh start || abort "unable to start ssh service"
+        invoke-rc.d ssh start || abort "unable to start ssh service"
     else
         report "ssh service already active, skipping"
     fi
