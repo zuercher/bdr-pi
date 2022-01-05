@@ -146,6 +146,7 @@ wireless_add_network() {
     local PSK=""
     while [[ -z "${PSK}" ]]; do
         PSK=$(prompt_pw "Wireless passphrase for ${SSID}")
+        echo
     done
 
     wpa_cli -i "${IFACE}" list_networks \
