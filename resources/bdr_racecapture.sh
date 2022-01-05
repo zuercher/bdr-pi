@@ -26,12 +26,14 @@ fi
 
 # Configure keyring to store Podium user credentials
 export PYTHON_KEYRING_BACKEND=sagecipher.keyring.Keyring
+
+# TODO: check for existing agent and just use it
 killall ssh-agent &>/dev/null
 eval "$(ssh-agent -s)" &>/dev/null
 ssh-add &>/dev/null
 
 KEEP_N_LOGS=$((10))
-MIN_RUNTIME=$((5))
+MIN_RUNTIME=$((30))
 SHORT_RUNTIME=$((0))
 
 cd "${RC_DIR}" ||:
@@ -42,10 +44,13 @@ while true; do
     LOGFILE="${LOG_DIR}/racecapture_$(date "+%Y%m%d_%H%M%S").log"
 
     START="$(date "+%s")"
-    ./race_capture >> "${LOGFILE}" 2>&1
-    echo "exit code $?"
+    if ./race_capture >> "${LOGFILE}" 2>&1; then
+        # clean exit, assume the user quit (or someone sent SIGINT/SIGQUIT)
+        exit 0
+    fi
     END="$(date +"%s")"
 
+    # Try to detect a crash loop and preserve some older logs (in case they have useful info)
     RUNTIME=$((END-START))
     if [[ "${RUNTIME}" -lt "${MIN_RUNTIME}" ]]; then
         echo "racecapture quit after ${RUNTIME} seconds" >> "${LOGFILE}"
