@@ -28,7 +28,7 @@ run_stage() {
       if [[ "\$(tty)" == "/dev/tty1" ]]; then
         echo
         if ! read -t 5 -p "starting racecapture in 5s (press ENTER to abort) "; then
-          echo "🚀"
+          printf "\nsend it!\n"
           "${SCRIPT_TARGET}"
         fi
       fi
