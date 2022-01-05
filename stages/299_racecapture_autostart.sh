@@ -15,11 +15,23 @@ run_stage() {
 
     local BASHRC="${SETUP_HOME}/.bashrc"
 
-    sed -e 's/^[[:space:]]*//' >>"${BASHRC}" << EOF
-      # start recapture on login from tty0
+    local START_FLAG="BEGIN_RCAP_START"
+    local END_FLAG="END_RCAP_START"
+    if grep -q "# ${START_FLAG}:" "${BASHRC}"; then
+        sed --in-place -e "/# ${START_FLAG}:/,/# ${END_FLAG}/d" "${BASHRC}" || \
+            abort "failed to clear old start handler in ${BASHRC}"
+    fi
+
+    sed -e 's/^ \{6\}//' >>"${BASHRC}" << EOF
+
+      # ${START_FLAG}: start racecapture on login from tty0
       if [[ "\$(tty)" == "/dev/tty1" ]]; then
-        "${SCRIPT_TARGET}"
+        if ! read -t 5 -p "starting racecapture in 5s (press ENTER to abort) "; then
+          echo
+          "${SCRIPT_TARGET}"
+        fi
       fi
+      # END_RCAP_START
 EOF
 
     chown "${SETUP_USER}:${SETUP_USER}" "${SCRIPT_TARGET}"

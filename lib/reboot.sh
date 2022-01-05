@@ -57,7 +57,7 @@ _on_reboot() {
         reboot_clear
     fi
 
-    local MATCH="^${THIS_TTY}"
+    local MATCH="^${THIS_TTY}$"
     local DESC="${THIS_TTY}"
     if [[ "${TTYPE}" == "pseudo-terminal" ]]; then
         MATCH="^/dev/pts/.+"
