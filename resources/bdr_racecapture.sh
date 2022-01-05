@@ -47,6 +47,8 @@ while true; do
     if ./race_capture >> "${LOGFILE}" 2>&1; then
         # clean exit, assume the user quit (or someone sent SIGINT/SIGQUIT)
         exit 0
+    else
+        echo "crash detected, restarting"
     fi
     END="$(date +"%s")"
 
