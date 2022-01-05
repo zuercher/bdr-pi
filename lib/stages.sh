@@ -103,6 +103,7 @@ stage_run() {
 
             local INPUT
             read -r -t 5 \
+                 -n 1 \
                  -p "rebooting in 5s (press ENTER to reboot immediately, any other key to stop) " \
                  INPUT
             [[ -n "${INPUT}" ]] && sighandler
