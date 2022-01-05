@@ -7,15 +7,26 @@ abort() {
 }
 
 DIR="{{SETUP_HOME}}"
+[[ "${DIR}" == "$(realpath "${DIR}")" ]] || abort "${DIR} must be absolute"
+[[ -d "${DIR}" ]] || abort "no such directory: ${DIR}"
 
-cd "${DIR}" || abort "cd to ${DIR} failed"
+RC_DIR="${DIR}/racecapture"
+[[ -d "${RC_DIR}" ]] || abort "no such directory: ${RC_DIR}"
 
 LOG_DIR="${DIR}/logs"
-mkdir -p "${LOG_DIR}"
+KIVY_DIR="${DIR}/.kivy"
+
+# Configure keyring to store Podium user credentials
+export PYTHON_KEYRING_BACKEND=sagecipher.keyring.Keyring
+killall ssh-agent &>/dev/null
+eval "$(ssh-agent -s)" &>/dev/null
+ssh-add &>/dev/null
 
 KEEP_N_LOGS=$((10))
 MIN_RUNTIME=$((5))
 SHORT_RUNTIME=$((0))
+
+cd "${RC_DIR}" ||:
 while true; do
     # Delete all but the last KEEP_N_LOGS logs
     find "${LOG_DIR}" -name "*.log" -print | sort -r | tail -n +$((KEEP_N_LOGS+1)) | xargs rm -f
@@ -23,7 +34,8 @@ while true; do
     LOGFILE="${LOG_DIR}/racecapture_$(date "+%Y%m%d_%H%M%S").log"
 
     START="$(date "+%s")"
-    "${DIR}"/racecapture/run_racecapture.sh -l "${LOGFILE}"
+    ./race_capture >> "${LOGFILE}" 2>&1
+    echo "exit code $?"
     END="$(date +"%s")"
 
     RUNTIME=$((END-START))
