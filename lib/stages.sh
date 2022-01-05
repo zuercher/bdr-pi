@@ -96,6 +96,7 @@ stage_run() {
 
         if reboot_is_required; then
             sighandler() {
+                echo
                 report "reboot canceled; run 'sudo reboot' to continue setup"
                 exit 0
             }
