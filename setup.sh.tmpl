@@ -96,7 +96,7 @@ mkdir -p "${BDR_DIR}/logs" || abort "could not create log dir"
 SETUP_LOGFILE="${BDR_DIR}/logs/setup_$(date -u "+%Y%m%d_%H%M%S").log"
 
 # Initial setup is complete, now transfer control to the code in BDR_DIR
-script --quiet --append --log-out "${SETUP_LOGFILE}" \
+script --quiet --flush --append --log-out "${SETUP_LOGFILE}" \
        --command \
        "sudo \
             SETUP_USER='${USER}' \
