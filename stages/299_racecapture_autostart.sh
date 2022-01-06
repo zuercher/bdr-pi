@@ -24,7 +24,7 @@ run_stage() {
 
     sed -e 's/^ \{6\}//' >>"${BASHRC}" << EOF
 
-      # ${START_FLAG}: start racecapture on login from tty0
+      # ${START_FLAG}: start racecapture on login from tty1
       if [[ "\$(tty)" == "/dev/tty1" ]]; then
         echo
         if ! read -t 5 -p "starting racecapture in 5s (press ENTER to abort) "; then

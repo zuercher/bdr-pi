@@ -95,19 +95,16 @@ stage_run() {
         _stage_complete "${STAGE_NAME}"
 
         if reboot_is_required; then
-            sighandler() {
-                echo
-                report "reboot canceled; run 'sudo reboot' to continue setup"
-                exit 0
-            }
-            trap sighandler SIGINT SIGTSTP
-
             local INPUT
             read -r -t 5 \
                  -n 1 \
                  -p "rebooting in 5s (press ENTER to reboot immediately, any other key to stop) " \
                  INPUT
-            [[ -n "${INPUT}" ]] && sighandler
+            if [[ -n "${INPUT}" ]]; then
+                echo
+                report "reboot canceled; run 'sudo reboot' to continue setup"
+                exit 0
+            fi
 
             report "rebooting now"
             shutdown -r now

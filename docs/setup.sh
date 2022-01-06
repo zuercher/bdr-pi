@@ -404,5 +404,6 @@ script --quiet --append --log-out "${SETUP_LOGFILE}" \
        "sudo \
             SETUP_USER='${USER}' \
             SETUP_HOME='${HOME}' \
+            SETUP_TTY='$(tty)' \
             BDR_DIR='${BDR_DIR}' \
             '${BDR_DIR}/update.sh' $*"

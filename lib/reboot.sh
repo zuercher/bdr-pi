@@ -37,11 +37,9 @@ _on_reboot() {
         abort "cannot schedule reboot task without an existing ${BASHRC}"
     fi
 
-    local THIS_TTY
-    THIS_TTY="$(tty)"
     local TTYPE="terminal"
-    if [[ "${THIS_TTY}" =~ ^/dev/pts/.+ ]]; then
-        # Some kind of pseudo-terminal, so expect the same for running on reboot.
+    if [[ "${SETUP_TTY}" =~ ^/dev/pts/.+ ]]; then
+        # Some kind of pseudo-terminal (e.g. ssh), so expect the same for running on reboot.
         TTYPE="pseudo-terminal"
     fi
 
@@ -57,8 +55,8 @@ _on_reboot() {
         reboot_clear
     fi
 
-    local MATCH="^${THIS_TTY}$"
-    local DESC="${THIS_TTY}"
+    local MATCH="^${SETUP_TTY}$"
+    local DESC="${SETUP_TTY}"
     if [[ "${TTYPE}" == "pseudo-terminal" ]]; then
         MATCH="^/dev/pts/.+"
         DESC="a pseudo-terminal"
