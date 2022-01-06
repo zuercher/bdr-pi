@@ -15,14 +15,16 @@ run_stage() {
         mtdev-tools
         wget
     )
-    apt-get install -y "${PKGS[@]}" || abort "unable to install packages: ${PKGS[*]}"
+    apt-get install -q -y "${PKGS[@]}" || abort "unable to install packages: ${PKGS[*]}"
 
     push_dir "${SETUP_HOME}"
 
     rm -f "${RC_FILE}"
 
     # download and extract as the setup user to keep the permissions correct
+    report "downloading ${RC_URL}"
     sudo -u "${SETUP_USER}" wget --no-verbose "${RC_URL}" || abort "unable to download ${RC_URL}"
+
     report "extracting ${RC_FILE}"
     sudo -u "${SETUP_USER}" tar xfj "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
 

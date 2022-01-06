@@ -7,7 +7,7 @@ run_stage() {
         build-essential
         libsystemd-dev
     )
-    apt-get install -y "${PKGS[@]}" || abort "unable to install packages: ${PKGS[*]}"
+    apt-get install -q -y "${PKGS[@]}" || abort "unable to install packages: ${PKGS[*]}"
 
     local UPS_DIR="${SETUP_HOME}/lifepo4wered-pi"
     local UPS_REPO="https://github.com/xorbit/LiFePO4wered-Pi.git"
