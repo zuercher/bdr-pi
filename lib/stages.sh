@@ -94,6 +94,11 @@ stage_run() {
         run_stage || abort "stage ${STAGE_NAME} failed"
         _stage_complete "${STAGE_NAME}"
 
+        if [[ "${SETUP_FLUSH_PID}" -gt 0 ]]; then
+            # Send SIGUSR1 to this PID to flush output.
+            kill -USR1 "${SETUP_FLUSH_PID}"
+        fi
+
         if reboot_is_required; then
             local INPUT
             read -r -t 5 \

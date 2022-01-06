@@ -96,11 +96,15 @@ mkdir -p "${BDR_DIR}/logs" || abort "could not create log dir"
 SETUP_LOGFILE="${BDR_DIR}/logs/setup_$(date -u "+%Y%m%d_%H%M%S").log"
 
 # Initial setup is complete, now transfer control to the code in BDR_DIR
-script --quiet --flush --append --log-out "${SETUP_LOGFILE}" \
+# Jump through some hoops to set SETUP_FLUSH_PID with script's PID so we
+# can send SIGUSR1 to it (which will flush logs). We also take care to
+# pass along the original user's name, path and tty.
+script --quiet --flush --log-out "${SETUP_LOGFILE}" \
        --command \
-       "sudo \
-            SETUP_USER='${USER}' \
-            SETUP_HOME='${HOME}' \
-            SETUP_TTY='$(tty)' \
-            BDR_DIR='${BDR_DIR}' \
-            '${BDR_DIR}/update.sh' $*"
+       "bash -c 'sudo \
+            SETUP_USER=\"${USER}\" \
+            SETUP_HOME=\"${HOME}\" \
+            SETUP_TTY=\"$(tty)\" \
+            SETUP_FLUSH_PID=\"\$PPID\" \
+            BDR_DIR=\"${BDR_DIR}\" \
+            \"${BDR_DIR}/update.sh\" $*'"
