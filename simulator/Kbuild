@@ -1,0 +1,8 @@
+obj-m := threadtest.o
+threadtest-y := test/thread_test.o
+threadtest-y += src/thread.o
+ccflags-y := -I$(src)/include
+
+#obj-m += tty_bridge_driver.o
+#tty_bridge_driver-objs := tty_bridge_driver.o thread.o
+
