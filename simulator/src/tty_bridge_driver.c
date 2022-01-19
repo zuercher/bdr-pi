@@ -16,7 +16,7 @@
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
-MODULE_LICENSE("Apache-2.0");
+MODULE_LICENSE("Dual MIT/GPL");
 
 #define BRIDGE_TTY_MAJOR  240     /* experimental range */
 #define BRIDGE_TTY_MINORS 255     /* use the whole major up */

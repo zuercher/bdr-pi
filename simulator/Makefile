@@ -6,8 +6,8 @@ default:
 
 clean:
 	rm -f \
-		thread_test_driver thread_test_driver.o \
-		thread_test_server thread_test_server.o
+		thread_test_driver test/thread_test_driver.o \
+		thread_test_server test/thread_test_server.o
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
 
 %.o : %.c
@@ -15,12 +15,8 @@ clean:
 
 test: thread_test_driver thread_test_server
 
-thread_test_driver: thread_test_driver.o
-	$(CC) -o $@ $<
+thread_test_driver: test/thread_test_driver.c
+	$(CC) -I include -o $@ $<
 
-thread_test_driver.o: thread_test_driver.c
-
-thread_test_server: thread_test_server.o
-	$(CC) -o $@ $<
-
-thread_test_server.o: thread_test_server.c
+thread_test_server: test/thread_test_server.c
+	$(CC) -I include -o $@ $<

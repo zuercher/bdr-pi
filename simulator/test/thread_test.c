@@ -8,17 +8,20 @@
 
 struct bridge_thread thread;
 
-#define DUMP_FMT_PREFIX "thread_test: received "
+#define THREAD_TEST "thread_test: "
+#define DUMP_FMT_PREFIX THREAD_TEST "received "
 #define DUMP_FMT DUMP_FMT_PREFIX "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %s"
 
 #define TIMER "timer: "
 
-static struct thread_test {
-  struct bridge_thread thread;
-
+struct thread_test {
   struct timer_list *timer;
   int timer_count;
-} thread_test;
+  void* wbuf;
+};
+
+static struct thread_test* g_thread_test = NULL;
+static struct bridge_thread *g_thread = NULL;
 
 static int thread_test_consumer(void *ctxt, void* data, int len)
 {
@@ -26,94 +29,129 @@ static int thread_test_consumer(void *ctxt, void* data, int len)
   unsigned char copy[16] = { 0 };
   char readable[17] = { 0 };
   int i, j;
+
+  printk(KERN_INFO THREAD_TEST "received %d bytes:", len);
+
   for(i = 0; i < len; i += 16) {
-    memcpy(readable, bytes, 16);
-    for(j = 0; j < 16; j++) {
-      if (readable[j] < 0x32 || readable[j] > 0x7E) {
-        readable[j] = '.';
+    if (i + 16 <= len) {
+      memcpy(readable, bytes, 16);
+      memcpy(copy, bytes, 16);
+      for(j = 0; j < 16; j++) {
+        if (readable[j] < 0x20 || readable[j] > 0x7E) {
+          readable[j] = '.';
+        }
+      }
+    } else {
+      // short, only do the available part
+      memset(readable, 0, 17);
+      memcpy(copy, bytes + i, len - i);
+      memcpy(readable, bytes + i, len - i);
+      for(j = 0; j < 16; j++) {
+        if (j >= len - i) {
+          readable[j] = ' ';
+        } else if (readable[j] < 0x20 || readable[j] > 0x7E) {
+          readable[j] = '.';
+        }
       }
     }
+
     printk(KERN_INFO DUMP_FMT,
-           bytes[i+0], bytes[i+1], bytes[i+2], bytes[i+3],
-           bytes[i+4], bytes[i+5], bytes[i+6], bytes[i+7],
-           bytes[i+8], bytes[i+9], bytes[i+10], bytes[i+11],
-           bytes[i+12], bytes[i+13], bytes[i+14], bytes[i+15],
+           copy[i+0], copy[i+1], copy[i+2], copy[i+3],
+           copy[i+4], copy[i+5], copy[i+6], copy[i+7],
+           copy[i+8], copy[i+9], copy[i+10], copy[i+11],
+           copy[i+12], copy[i+13], copy[i+14], copy[i+15],
            readable);
   }
 
-  memset(readable, 0, 17);
-  memcpy(copy, bytes + i, len - i);
-  memcpy(readable, bytes + i, len - i);
-  for(j = 0; j < 16; j++) {
-    if (j > len - i) {
-      readable[j] = ' ';
-    } else if (readable[j] < 0x32 || readable[j] > 0x7E) {
-      readable[j] = '.';
-    }
+  if (g_thread_test != NULL) {
+    mod_timer(g_thread_test->timer, jiffies + msecs_to_jiffies(100));
   }
-  printk(KERN_INFO DUMP_FMT,
-         copy[i+0], copy[i+1], copy[i+2], copy[i+3],
-         copy[i+4], copy[i+5], copy[i+6], copy[i+7],
-         copy[i+8], copy[i+9], copy[i+10], copy[i+11],
-         copy[i+12], copy[i+13], copy[i+14], copy[i+15],
-         readable);
 
   return 0;
 }
 
 static void thread_test_timer(struct timer_list* timer) {
-  struct iovec iov = { 0 };
-  struct msghdr msg = { 0 };
-  struct socket* accepted;
-  char buf[128];
-  int rc;
-  sprintf(buf, "TICK %d\n", ++thread_test.timer_count);
-  iov.iov_base = buf;
-  iov.iov_len = strlen(buf);
-  iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, 1);
+  int len;
 
-  mutex_lock(&thread_test.thread.mutex);
-  accepted = thread_test.thread.accepted;
-  mutex_unlock(&thread_test.thread.mutex);
-
-  if (accepted == NULL) {
+  if (g_thread == NULL) {
+    printk(KERN_ERR THREAD_TEST TIMER "no thread");
     return;
   }
 
-  rc = sock_sendmsg(accepted, &msg);
-  if (rc < 0) {
-    printk(KERN_ERR TIMER "send error %d", -rc);
-  }
+  len = sprintf(g_thread_test->wbuf, "TOCK %d\n", ++g_thread_test->timer_count);
 
-  timer->expires = jiffies + HZ;
-  add_timer(timer);
+  if (thread_write(g_thread, g_thread_test->wbuf, len) == 0) {
+    printk(KERN_ERR THREAD_TEST TIMER "no socket");
+  }
 }
 
 int thread_test_init (void) {
-  int rc = thread_init(&thread_test.thread, thread_test_consumer, NULL);
-  if (rc < 0) {
-    printk(KERN_ERR "failed to initialize thread");
-    return rc;
+  int rc;
+
+  g_thread = kmalloc(sizeof(*g_thread), GFP_KERNEL);
+  if (!g_thread) {
+    printk(KERN_ERR THREAD_TEST "failed to allocate thread");
+    return -ENOMEM;
   }
 
-  rc = thread_start(&thread_test.thread);
-  if (rc < 0) {
-    printk(KERN_ERR "failed to start thread");
-    return rc;
+  g_thread_test = kmalloc(sizeof(*g_thread_test), GFP_KERNEL);
+  if (!g_thread_test) {
+    printk(KERN_ERR THREAD_TEST "failed to allocate test data");
+    kfree(g_thread);
+    g_thread = NULL;
+    return -ENOMEM;
   }
 
-  thread_test.timer = kmalloc(sizeof(*thread_test.timer), GFP_KERNEL);
-  if (!thread_test.timer) {
-    printk(KERN_ERR "failed to allocate timer");
+  g_thread_test->wbuf = kmalloc(128, GFP_KERNEL);
+  if (!g_thread_test->wbuf) {
+    printk(KERN_ERR THREAD_TEST "failed to allocate thread buffer");
+    kfree(g_thread);
+    return -ENOMEM;
+  }
+  memset(g_thread_test->wbuf, 0, 128);
 
-    thread_stop(&thread_test.thread);
+  g_thread_test->timer_count = 0;
+  g_thread_test->timer = kmalloc(sizeof(*g_thread_test->timer), GFP_KERNEL);
+  if (!g_thread_test->timer) {
+    printk(KERN_ERR THREAD_TEST "failed to allocate timer");
+
+    kfree(g_thread);
+    g_thread = NULL;
+    kfree(g_thread_test);
+    g_thread_test = NULL;
 
     return -ENOMEM;
   }
 
-  timer_setup(thread_test.timer, thread_test_timer, 0);
-  thread_test.timer->expires = jiffies + HZ;
-  add_timer(thread_test.timer);
+  rc = thread_init(g_thread, thread_test_consumer, NULL);
+  if (rc < 0) {
+    printk(KERN_ERR THREAD_TEST "failed to initialize thread");
+
+    kfree(g_thread);
+    g_thread = NULL;
+    kfree(g_thread_test->timer);
+    kfree(g_thread_test);
+    g_thread_test = NULL;
+
+    return rc;
+  }
+
+  rc = thread_start(g_thread);
+  if (rc < 0) {
+    printk(KERN_ERR THREAD_TEST "failed to start thread");
+
+    kfree(g_thread);
+    g_thread = NULL;
+    kfree(g_thread_test->timer);
+    kfree(g_thread_test);
+    g_thread_test = NULL;
+
+    return rc;
+  }
+
+  timer_setup(g_thread_test->timer, thread_test_timer, 0);
+
+  printk(KERN_INFO THREAD_TEST "initialized");
 
   return 0;
 }
@@ -121,21 +159,36 @@ int thread_test_init (void) {
 void thread_test_exit(void) {
   int rc;
 
-  if (thread_test.timer != NULL) {
-    del_timer(thread_test.timer);
+  printk(KERN_INFO THREAD_TEST "exiting");
+  if (g_thread != NULL) {
+    rc = thread_stop(g_thread);
+    if (rc < 0) {
+      printk(KERN_ERR THREAD_TEST "failed to stop thread %d", rc);
+    }
+
+    kfree(g_thread);
+    g_thread = NULL;
   }
 
-  rc = thread_stop(&thread);
-  if (rc < 0) {
-    printk(KERN_ERR "failed to stop thread");
+  if (g_thread_test != NULL) {
+    if (g_thread_test->timer != NULL) {
+      del_timer(g_thread_test->timer);
+      kfree(g_thread_test->timer);
+      kfree(g_thread_test->wbuf);
+    }
+
+    kfree(g_thread_test);
+    g_thread_test = NULL;
   }
+
+  printk(KERN_INFO THREAD_TEST "completed");
 }
 
 #define DRIVER_VERSION "v0.1"
 #define DRIVER_AUTHOR "Stephan Zuercher <zuercher@gmail.com>"
 #define DRIVER_DESC "Thread Testing Thingy"
 
-MODULE_LICENSE("Apache-2.0");
+MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 
