@@ -13,7 +13,7 @@ static char socket_name[26] = BRIDGE_SOCKET_NAME;
 void usage(const char* argv0) {
   printf("usage: %s [--tick | --tock]\n", argv0);
   printf("\n");
-  printf("Sends messages to the bridge socket for testing with the thread_test\n");
+  printf("Sends messages to the bridge socket for testing with the sockettest\n");
   printf("kernel module.\n");
   exit(1);
 }

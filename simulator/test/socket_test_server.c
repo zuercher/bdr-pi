@@ -13,8 +13,8 @@ static char socket_name[26] = BRIDGE_SOCKET_NAME;
 void usage(const char* argv0) {
   printf("usage: %s [--tick | --tock]\n", argv0);
   printf("\n");
-  printf("Simulates the thread_test kernel module in user space for testing the\n");
-  printf("thread_test_driver.\n");
+  printf("Simulates the sockettest kernel module in user space for testing the\n");
+  printf("socket_test_driver.\n");
   exit(1);
 }
 

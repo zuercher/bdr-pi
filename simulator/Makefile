@@ -6,17 +6,17 @@ default:
 
 clean:
 	rm -f \
-		thread_test_driver test/thread_test_driver.o \
-		thread_test_server test/thread_test_server.o
+		socket_test_driver test/*.o \
+		socket_test_server test/*.o
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
 
 %.o : %.c
 	$(CC) $(CFLAGS) $< -c
 
-test: thread_test_driver thread_test_server
+test: socket_test_driver socket_test_server
 
-thread_test_driver: test/thread_test_driver.c
+socket_test_driver: test/socket_test_driver.c
 	$(CC) -I include -o $@ $<
 
-thread_test_server: test/thread_test_server.c
+socket_test_server: test/socket_test_server.c
 	$(CC) -I include -o $@ $<
