@@ -1,8 +1,10 @@
 obj-m := sockettest.o
+obj-m += fake_racecap_tty.o
+
 sockettest-y := test/socket_test.o
 sockettest-y += src/socket.o
+
+fake_racecap_tty-y := src/tty_bridge_driver.o
+fake_racecap_tty-y += src/socket.o
+
 ccflags-y := -I$(src)/include
-
-#obj-m += tty_bridge_driver.o
-#tty_bridge_driver-objs := tty_bridge_driver.o socket.o
-
