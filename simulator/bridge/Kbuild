@@ -1,0 +1,12 @@
+BRIDGE_DEBUG ?= 0
+
+obj-m := sockettest.o
+obj-m += fake_racecap_tty.o
+
+sockettest-y := test/socket_test.o
+sockettest-y += src/socket.o
+
+fake_racecap_tty-y := src/tty.o
+fake_racecap_tty-y += src/socket.o
+
+ccflags-y := -I$(src)/include -DBRIDGE_DEBUG=$(BRIDGE_DEBUG)

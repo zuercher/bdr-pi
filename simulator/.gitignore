@@ -1,0 +1,10 @@
+*.ko
+*.mod
+*.mod.c
+*.o
+.*.cmd
+modules.order
+Module.symvers
+socket_test_driver
+socket_test_server
+
