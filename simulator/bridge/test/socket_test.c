@@ -6,6 +6,17 @@
 
 #include "socket.h"
 
+// Provides a socket test module. The module listens on
+// BRIDGE_SOCKET_NAME and logs the bytes it receives. After receiving
+// data it schedules a timer to fire to write back to the socket with
+// the format "TOCK %d\n", with a counter of the number of "tocks"
+// sent.
+
+// Usage from the parent dir:
+// $ make test
+// $ sudo insmod sockettest.ko
+// $ ./socket_test_driver --tick
+
 #define SOCKET_TEST "socket_test: "
 #define DUMP_FMT_PREFIX SOCKET_TEST "received "
 #define DUMP_FMT DUMP_FMT_PREFIX "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %s"

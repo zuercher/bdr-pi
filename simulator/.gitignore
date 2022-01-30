@@ -5,4 +5,6 @@
 .*.cmd
 modules.order
 Module.symvers
-thread_test_driver
+socket_test_driver
+socket_test_server
+

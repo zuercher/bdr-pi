@@ -14,17 +14,19 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 
+#include "common.h"
 #include "socket.h"
 
 #define DRIVER_VERSION "v0.1"
 #define DRIVER_AUTHOR "Stephan Zuercher <zuercher@gmail.com>"
-#define DRIVER_DESC "Socket bridge TTY driver"
+#define DRIVER_DESC "Fake Race Capture TTY driver"
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("Dual MIT/GPL");
 
-#ifdef BRIDGE_DEBUG
+#if BRIDGE_DEBUG > 0
+#undef pr_debug
 #define pr_debug pr_info
 #endif
 
@@ -35,7 +37,7 @@ struct bridge_serial {
   struct tty_struct *tty;
   int open_count;
   struct mutex mutex;
-  struct timer_list timer;
+  struct bridge_socket *socket;
 
   int msr;
   int mcr;
@@ -45,29 +47,27 @@ struct bridge_serial {
   struct async_icount icount;
 };
 
-static struct bridge_serial *bridge_table[BRIDGE_TTY_MINORS];
-static struct tty_port bridge_tty_port[BRIDGE_TTY_MINORS];
+static struct bridge_serial *bridge = NULL;
+static struct tty_port bridge_tty_port = { 0 };
+static struct bridge_socket bridge_socket = { 0 };
 
 static int bridge_open(struct tty_struct *tty, struct file *file)
 {
-  struct bridge_serial *bridge;
-  int index;
-
   tty->driver_data = NULL;
 
-  index = tty->index;
-  bridge = bridge_table[index];
+  pr_debug("fake racecap open\n");
+
   if (bridge == NULL) {
     // first open of this tty
     bridge = kmalloc(sizeof(*bridge), GFP_KERNEL);
     if (bridge == NULL) {
+      pr_err("fake racecap openfailed: %d\n", -ENOMEM);
       return -ENOMEM;
     }
 
     mutex_init(&bridge->mutex);
     bridge->open_count = 0;
-
-    bridge_table[index] = bridge;
+    bridge->socket = NULL;
   }
 
   mutex_lock(&bridge->mutex);
@@ -79,7 +79,7 @@ static int bridge_open(struct tty_struct *tty, struct file *file)
   bridge->open_count++;
 
   if (bridge->open_count == 1) {
-    // TODO first open: assign socket
+    bridge->socket = &bridge_socket;
   }
 
   mutex_unlock(&bridge->mutex);
@@ -99,9 +99,9 @@ static void do_close(struct bridge_serial *bridge)
   bridge->open_count--;
 
   if (bridge->open_count <= 0) {
-    // TODO: last close: unassign socket
-
+    bridge->socket = NULL;
    }
+
 exit:
   mutex_unlock(&bridge->mutex);
 }
@@ -109,6 +109,8 @@ exit:
 static void bridge_close(struct tty_struct *tty, struct file *file)
 {
   struct bridge_serial *bridge = tty->driver_data;
+
+  pr_debug("fake racecap close\n");
 
   if (bridge != NULL) {
     do_close(bridge);
@@ -121,19 +123,25 @@ static int bridge_write(struct tty_struct *tty, const unsigned char *buffer, int
   //  int i;
   int retval = -EINVAL;
 
+  pr_debug("fake racecap write\n");
+
   if (bridge == NULL) {
     return -ENODEV;
   }
 
   mutex_lock(&bridge->mutex);
 
-  if (!bridge->open_count) {
+  if (!bridge->open_count || bridge->socket == NULL) {
     // never opened?
     goto exit;
   }
 
-  // TODO: write to socket
-  retval = count;
+  retval = socket_write(bridge->socket, (void*)buffer, count);
+  if (retval < 0) {
+    pr_err("socket write error %d\n", retval);
+  } else if (retval < count) {
+    pr_err("socket write underflow of %d bytes (wrote %d)\n", count - retval, retval);
+  }
 
 exit:
   mutex_unlock(&bridge->mutex);
@@ -169,19 +177,57 @@ exit:
   return room;
 }
 
+static int bridge_read(void* ctxt, void* data, int len) {
+  struct tty_struct *tty;
+  struct tty_port *port;
+  int rc = -EINVAL;
+
+  pr_debug("fake racecap read\n");
+
+  if (bridge == NULL) {
+    return -ENODEV;
+  }
+
+  if (len == 0) {
+    return 0;
+  }
+
+  mutex_lock(&bridge->mutex);
+
+  if (!bridge->open_count || bridge->socket == NULL) {
+    // never opened?
+    goto exit;
+  }
+
+  tty = bridge->tty;
+  port = tty->port;
+
+  rc = tty_insert_flip_string_fixed_flag(port, (const unsigned char*)data, TTY_NORMAL, (size_t)len);
+  if (rc < len) {
+    pr_err("buffer underflow of %d bytes (wrote %d)\n", len - rc, rc);
+  }
+  tty_flip_buffer_push(port);
+
+ exit:
+  mutex_unlock(&bridge->mutex);
+
+  return rc;
+}
+
 #define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
 
 static void bridge_set_termios(struct tty_struct *tty, struct ktermios *old_termios)
 {
   unsigned int cflag = tty->termios.c_cflag;
 
-  pr_debug("bridge_set_termios\n");
+  pr_debug("fake racecap set_termios\n");
 
   // Is something changing?
   if (old_termios) {
     if ((cflag == old_termios->c_cflag) &&
         (RELEVANT_IFLAG(tty->termios.c_iflag) ==
          RELEVANT_IFLAG(old_termios->c_iflag))) {
+      pr_debug(" - no changes\n");
       return;
     }
   }
@@ -306,17 +352,9 @@ static int bridge_tiocmset(struct tty_struct *tty,
 
 static int bridge_proc_show(struct seq_file *m, void *v)
 {
-  struct bridge_serial *bridge;
-  int i;
-
   seq_printf(m, "bridgeserinfo:1.0 driver:%s\n", DRIVER_VERSION);
-  for (i = 0; i < BRIDGE_TTY_MINORS; ++i) {
-    bridge = bridge_table[i];
-    if (bridge == NULL) {
-      continue;
-    }
-
-    seq_printf(m, "%d\n", i);
+  if (bridge != NULL) {
+    seq_printf(m, "1\n");
   }
 
   return 0;
@@ -463,70 +501,79 @@ static struct tty_driver *bridge_tty_driver;
 
 static int __init bridge_init(void)
 {
+  struct device* dev;
   int retval;
-  int i;
 
   bridge_tty_driver = alloc_tty_driver(BRIDGE_TTY_MINORS);
   if (bridge_tty_driver == NULL) {
+    pr_err("failed to alloc tty driver\n");
     return -ENOMEM;
   }
 
   bridge_tty_driver->owner = THIS_MODULE;
-  bridge_tty_driver->driver_name = "fake_racecap_tty";
-  bridge_tty_driver->name = "ttyUSB_FAKE_RACECAP";
-  bridge_tty_driver->major = BRIDGE_TTY_MAJOR,
-  bridge_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
-  bridge_tty_driver->subtype = SERIAL_TYPE_NORMAL,
-  bridge_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV,
+  bridge_tty_driver->driver_name = BRIDGE_DRIVER_NAME;
+  bridge_tty_driver->name = BRIDGE_TTY_NAME;
+  bridge_tty_driver->major = BRIDGE_TTY_MAJOR;
+  bridge_tty_driver->type = TTY_DRIVER_TYPE_SERIAL;
+  bridge_tty_driver->subtype = SERIAL_TYPE_NORMAL;
+  bridge_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV;
   bridge_tty_driver->init_termios = tty_std_termios;
   bridge_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
   tty_set_operations(bridge_tty_driver, &serial_ops);
 
-  for (i = 0; i < BRIDGE_TTY_MINORS; i++) {
-    tty_port_init(bridge_tty_port + i);
-    tty_port_link_device(bridge_tty_port + i, bridge_tty_driver, i);
-  }
+  tty_port_init(&bridge_tty_port);
+  tty_port_link_device(&bridge_tty_port, bridge_tty_driver, 0);
 
   retval = tty_register_driver(bridge_tty_driver);
   if (retval) {
-    pr_err("failed to register bridge tty driver %d", retval);
+    pr_err("failed to register %s %d\n", BRIDGE_DRIVER_NAME, retval);
     put_tty_driver(bridge_tty_driver);
     return retval;
   }
 
-  for (i = 0; i < BRIDGE_TTY_MINORS; ++i) {
-    tty_register_device(bridge_tty_driver, i, NULL);
+  dev = tty_register_device(bridge_tty_driver, 0, NULL);
+  if (IS_ERR(dev)) {
+    pr_err("failed to register device for %s minor %d %ld\n", BRIDGE_DRIVER_NAME, 0, PTR_ERR(dev));
+    tty_unregister_driver(bridge_tty_driver);
+    put_tty_driver(bridge_tty_driver);
+    return PTR_ERR(dev);
   }
 
-  // TODO: init socket
+  retval = socket_init(&bridge_socket, bridge_read, NULL);
+  if (!retval) {
+    retval = socket_listen(&bridge_socket);
+  }
+  if (retval < 0) {
+    pr_err("failed to init socket for %s minor %d %d\n", BRIDGE_DRIVER_NAME, 0, retval);
+    tty_unregister_device(bridge_tty_driver, 0);
+    tty_unregister_driver(bridge_tty_driver);
+    put_tty_driver(bridge_tty_driver);
+    return retval;
+  }
 
-  pr_info(DRIVER_DESC " " DRIVER_VERSION);
+  pr_info(DRIVER_DESC " " DRIVER_VERSION "\n");
+
   return retval;
 }
 
 static void __exit bridge_exit(void)
 {
-  struct bridge_serial *bridge;
-  int i;
+  struct bridge_serial *b = bridge;
 
-  for (i = 0; i < BRIDGE_TTY_MINORS; ++i) {
-    bridge = bridge_table[i];
-    if (bridge) {
-      while (bridge->open_count > 0) {
-        do_close(bridge);
-      }
+  bridge = NULL;
+  if (b != NULL) {
+    while (b->open_count > 0) {
+      do_close(b);
     }
   }
 
-  // TODO: close socket
+  socket_close(&bridge_socket);
 
-  for (i = 0; i < BRIDGE_TTY_MINORS; ++i) {
-    tty_unregister_device(bridge_tty_driver, i);
-  }
-
+  tty_unregister_device(bridge_tty_driver, 0);
   tty_unregister_driver(bridge_tty_driver);
-
   put_tty_driver(bridge_tty_driver);
+
+  pr_info(DRIVER_DESC " " DRIVER_VERSION " exit\n");
 }
 
 module_init(bridge_init);

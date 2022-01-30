@@ -32,7 +32,7 @@ int socket_init(struct bridge_socket* s, int (*consume)(void*, void*, int), void
   s->consumer_data = data;
 
   if (s->buf == NULL) {
-    printk(KERN_ERR SOCKET "failed to allocate recv buffer");
+    pr_err(SOCKET "failed to allocate recv buffer\n");
     return -ENOMEM;
   }
 
@@ -64,10 +64,10 @@ static void socket_read_handler(struct bridge_socket* s) {
     s->pending_data = 0;
     rc = s->consume(s->consumer_data, s->buf, rc);
     if (rc < 0) {
-      printk(KERN_ERR SOCKET "consume error %d", rc);
+      pr_err(SOCKET "consume error %d\n", rc);
     }
   } else if (rc < 0 && rc != -EAGAIN) {
-    printk(KERN_ERR SOCKET "read error %d", rc);
+    pr_err(SOCKET "read error %d\n", rc);
   }
 
  done:
@@ -88,7 +88,7 @@ static void socket_state_handler(struct sock* sk) {
     fallthrough;
   case TCP_CLOSE_WAIT:
     if (s->accepted != NULL) {
-      printk(KERN_INFO SOCKET "conn closed");
+      pr_info(SOCKET "conn closed\n");
       sock_release(s->accepted);
       s->accepted = NULL;
     }
@@ -106,7 +106,7 @@ static void socket_accept_handler(struct sock* sk) {
   struct socket* conn = NULL;
   int rc = sock_create_lite(AF_UNIX, SOCK_STREAM, 0, &conn);
   if (rc < 0) {
-    printk(KERN_ERR SOCKET "failed to create accept socket: %d", rc);
+    pr_err(SOCKET "failed to create accept socket: %d\n", rc);
     return;
   }
 
@@ -114,7 +114,7 @@ static void socket_accept_handler(struct sock* sk) {
 
   mutex_lock(&s->mutex);
   if (s->accepted != NULL) {
-    printk(KERN_INFO SOCKET "closing stale connection");
+    pr_info(SOCKET "closing stale connection\n");
     sock_release(s->accepted);
     s->accepted = NULL;
   }
@@ -124,7 +124,7 @@ static void socket_accept_handler(struct sock* sk) {
 
   rc = s->listener->ops->accept(s->listener, conn, 0, true);
   if (rc < 0) {
-    printk(KERN_ERR SOCKET "failed to accept connection: %d", rc);
+    pr_err(SOCKET "failed to accept connection: %d\n", rc);
     sock_release(conn);
     goto done;
   }
@@ -141,6 +141,7 @@ static void socket_accept_handler(struct sock* sk) {
 int socket_listen(struct bridge_socket* s)
 {
   struct sockaddr_un addr;
+  size_t addrlen;
   int rc;
 
   if (s == NULL) {
@@ -149,11 +150,12 @@ int socket_listen(struct bridge_socket* s)
 
   memset(&addr, 0, sizeof(addr));
   addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, socket_name, sizeof(addr.sun_path) - 1);
+  strncpy(addr.sun_path+1, socket_name+1, sizeof(addr.sun_path) - 2);
+  addrlen = offsetof(struct sockaddr_un, sun_path)+BRIDGE_SOCKET_NAME_LEN;
 
   rc = sock_create(AF_UNIX, SOCK_STREAM, 0, &s->listener);
   if (rc < 0) {
-    printk(KERN_ERR SOCKET "failed to open socket: %d", rc);
+    pr_err(SOCKET "failed to open socket: %d\n", rc);
     return rc;
   }
 
@@ -161,9 +163,9 @@ int socket_listen(struct bridge_socket* s)
   s->listener->sk->sk_data_ready = socket_accept_handler;
   s->listener->sk->sk_state_change = socket_state_handler;
 
-  rc = s->listener->ops->bind(s->listener, (struct sockaddr*)&addr, sizeof(addr));
+  rc = s->listener->ops->bind(s->listener, (struct sockaddr*)&addr, addrlen);
   if (rc < 0) {
-    printk(KERN_ERR SOCKET "failed to bind socket: %d", rc);
+    pr_err(SOCKET "failed to bind socket: %d\n", rc);
     sock_release(s->listener);
     s->listener = NULL;
     return rc;
@@ -171,7 +173,7 @@ int socket_listen(struct bridge_socket* s)
 
   rc = s->listener->ops->listen(s->listener, 1);
   if (rc < 0) {
-    printk(KERN_ERR SOCKET "failed to listener on socket: %d", rc);
+    pr_err(SOCKET "failed to listener on socket: %d\n", rc);
     sock_release(s->listener);
     s->listener = NULL;
     return rc;
@@ -201,6 +203,10 @@ int socket_close(struct bridge_socket* s)
     sock_release(l);
   }
 
+  if (s->buf != NULL) {
+    kfree(s->buf);
+  }
+
   mutex_unlock(&s->mutex);
 
   return 0;
@@ -220,7 +226,7 @@ int socket_write(struct bridge_socket* s, void* data, int len) {
     rc = kernel_sendmsg(s->accepted, &msg, iov, 1, len);
     if (rc < 0) {
       if (rc != -EPIPE) {
-        printk(KERN_ERR SOCKET "send error %d", rc);
+        pr_err(SOCKET "send error %d\n", rc);
       } else {
         rc = 0;
       }
@@ -229,8 +235,8 @@ int socket_write(struct bridge_socket* s, void* data, int len) {
       s->accepted = NULL;
     }
   } else {
-    printk(KERN_ERR SOCKET "no socket");
-    rc = 0;
+    pr_err(SOCKET "no socket\n");
+    rc = -EINVAL;
   }
 
   mutex_unlock(&s->mutex);
