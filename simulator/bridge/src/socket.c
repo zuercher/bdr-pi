@@ -13,7 +13,7 @@
 #define SOCKET "bridge-socket: "
 #define BUF_SIZE (64*1024)
 
-static char socket_name[26] = BRIDGE_SOCKET_NAME;
+static char socket_name[BRIDGE_SOCKET_NAME_LEN+1] = BRIDGE_SOCKET_NAME;
 
 int socket_init(struct bridge_socket* s, int (*consume)(void*, void*, int), void* data)
 {
@@ -150,7 +150,14 @@ int socket_listen(struct bridge_socket* s)
 
   memset(&addr, 0, sizeof(addr));
   addr.sun_family = AF_UNIX;
+
+  // Copy at offset of 1 to preseve the zero byte at the start of
+  // socket_name. Max copy is size of sun_path - 2 to account for the
+  // leading zero byte and to guarantee a trailing zero byte.
   strncpy(addr.sun_path+1, socket_name+1, sizeof(addr.sun_path) - 2);
+
+  // Compute addrlen to avoid creating a socket with trailing zero
+  // bytes in its name.
   addrlen = offsetof(struct sockaddr_un, sun_path)+BRIDGE_SOCKET_NAME_LEN;
 
   rc = sock_create(AF_UNIX, SOCK_STREAM, 0, &s->listener);

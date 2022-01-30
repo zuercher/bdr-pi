@@ -61,13 +61,12 @@ static int bridge_open(struct tty_struct *tty, struct file *file)
     // first open of this tty
     bridge = kmalloc(sizeof(*bridge), GFP_KERNEL);
     if (bridge == NULL) {
-      pr_err("fake racecap openfailed: %d\n", -ENOMEM);
+      pr_err("fake racecap open failed: no memory\n");
       return -ENOMEM;
     }
 
+    memset(&bridge, 0, sizeof(struct bridge_serial));
     mutex_init(&bridge->mutex);
-    bridge->open_count = 0;
-    bridge->socket = NULL;
   }
 
   mutex_lock(&bridge->mutex);
@@ -169,7 +168,7 @@ static unsigned int bridge_write_room(struct tty_struct *tty)
     goto exit;
   }
 
-  // how much?
+  // TODO: this should be less aspirational
   room = 4*1024;
 
 exit:
@@ -214,90 +213,20 @@ static int bridge_read(void* ctxt, void* data, int len) {
   return rc;
 }
 
-#define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
-
 static void bridge_set_termios(struct tty_struct *tty, struct ktermios *old_termios)
 {
   unsigned int cflag = tty->termios.c_cflag;
+  unsigned int ocflag = 0;
 
-  pr_debug("fake racecap set_termios\n");
-
-  // Is something changing?
   if (old_termios) {
-    if ((cflag == old_termios->c_cflag) &&
-        (RELEVANT_IFLAG(tty->termios.c_iflag) ==
-         RELEVANT_IFLAG(old_termios->c_iflag))) {
-      pr_debug(" - no changes\n");
+    ocflag = old_termios->c_cflag;
+    if (cflag == ocflag) {
+      pr_debug("fake racecap set_termios -- no change %08x\n", cflag);
       return;
     }
   }
 
-  // report byte size
-  switch (cflag & CSIZE) {
-  case CS5:
-    pr_debug(" - data bits = 5\n");
-    break;
-  case CS6:
-    pr_debug(" - data bits = 6\n");
-    break;
-  case CS7:
-    pr_debug(" - data bits = 7\n");
-    break;
-  default:
-  case CS8:
-    pr_debug(" - data bits = 8\n");
-    break;
-  }
-
-  // report parity
-  if (cflag & PARENB) {
-    if (cflag & PARODD) {
-      pr_debug(" - parity = odd\n");
-    } else {
-      pr_debug(" - parity = even\n");
-    }
-  } else {
-    pr_debug(" - parity = none\n");
-  }
-
-  // report stop bits
-  if (cflag & CSTOPB) {
-    pr_debug(" - stop bits = 2\n");
-  } else {
-    pr_debug(" - stop bits = 1\n");
-  }
-
-  // report h/w flow control
-  if (cflag & CRTSCTS) {
-    pr_debug(" - RTS/CTS is enabled\n");
-  } else {
-    pr_debug(" - RTS/CTS is disabled\n");
-  }
-
-  // report s/w flow control
-  if (I_IXOFF(tty) || I_IXON(tty)) {
-    unsigned char stop_char  = STOP_CHAR(tty);
-    unsigned char start_char = START_CHAR(tty);
-
-    /* if we are implementing INBOUND XON/XOFF */
-    if (I_IXOFF(tty)) {
-      pr_debug(" - INBOUND XON/XOFF is enabled, "
-        "XON = %2x, XOFF = %2x", start_char, stop_char);
-    } else {
-      pr_debug(" - INBOUND XON/XOFF is disabled");
-    }
-
-    /* if we are implementing OUTBOUND XON/XOFF */
-    if (I_IXON(tty)) {
-      pr_debug(" - OUTBOUND XON/XOFF is enabled, "
-        "XON = %2x, XOFF = %2x", start_char, stop_char);
-    } else {
-      pr_debug(" - OUTBOUND XON/XOFF is disabled");
-    }
-  }
-
-  // report the baud rate
-  pr_debug(" - baud rate = %d", tty_get_baud_rate(tty));
+  pr_debug("fake racecap set_termios -- %08x to %08x\n", ocflag, cflag);
 }
 
 // Fake UART values
@@ -312,18 +241,27 @@ static void bridge_set_termios(struct tty_struct *tty, struct ktermios *old_term
 static int bridge_tiocmget(struct tty_struct *tty)
 {
   struct bridge_serial *bridge = tty->driver_data;
-
   unsigned int result = 0;
-  unsigned int msr = bridge->msr;
-  unsigned int mcr = bridge->mcr;
+  unsigned int msr;
+  unsigned int mcr;
 
-  result = ((mcr & MCR_DTR)  ? TIOCM_DTR  : 0) |  /* DTR is set */
-    ((mcr & MCR_RTS)  ? TIOCM_RTS  : 0) |  /* RTS is set */
-    ((mcr & MCR_LOOP) ? TIOCM_LOOP : 0) |  /* LOOP is set */
-    ((msr & MSR_CTS)  ? TIOCM_CTS  : 0) |  /* CTS is set */
-    ((msr & MSR_CD)   ? TIOCM_CAR  : 0) |  /* Carrier detect is set*/
-    ((msr & MSR_RI)   ? TIOCM_RI   : 0) |  /* Ring Indicator is set */
-    ((msr & MSR_DSR)  ? TIOCM_DSR  : 0);  /* DSR is set */
+  mutex_lock(&bridge->mutex);
+
+  msr = bridge->msr;
+  mcr = bridge->mcr;
+
+  result =
+    ((mcr & MCR_DTR)  ? TIOCM_DTR  : 0) |  // DTR
+    ((mcr & MCR_RTS)  ? TIOCM_RTS  : 0) |  // RTS
+    ((mcr & MCR_LOOP) ? TIOCM_LOOP : 0) |  // LOOP
+    ((msr & MSR_CTS)  ? TIOCM_CTS  : 0) |  // CTS
+    ((msr & MSR_CD)   ? TIOCM_CAR  : 0) |  // carrier detect
+    ((msr & MSR_RI)   ? TIOCM_RI   : 0) |  // ring
+    ((msr & MSR_DSR)  ? TIOCM_DSR  : 0);   // DSR
+
+  mutex_unlock(&bridge->mutex);
+
+  pr_debug("fake racecap tiocmget %08x\n", result);
 
   return result;
 }
@@ -333,20 +271,31 @@ static int bridge_tiocmset(struct tty_struct *tty,
                            unsigned int clear)
 {
   struct bridge_serial *bridge = tty->driver_data;
-  unsigned int mcr = bridge->mcr;
+  unsigned int mcr;
 
-  if (set & TIOCM_RTS)
+  pr_debug("fake racecap tiocmset set %08x\n, clear %08x", set, clear);
+
+  mutex_lock(&bridge->mutex);
+
+  mcr = bridge->mcr;
+  if (set & TIOCM_RTS) {
     mcr |= MCR_RTS;
-  if (set & TIOCM_DTR)
+  }
+  if (set & TIOCM_DTR) {
     mcr |= MCR_RTS;
+  }
 
-  if (clear & TIOCM_RTS)
+  if (clear & TIOCM_RTS) {
     mcr &= ~MCR_RTS;
-  if (clear & TIOCM_DTR)
+  }
+  if (clear & TIOCM_DTR) {
     mcr &= ~MCR_RTS;
+  }
 
-  /* set the new MCR value in the device */
   bridge->mcr = mcr;
+
+  mutex_unlock(&bridge->mutex);
+
   return 0;
 }
 
@@ -375,6 +324,8 @@ static int bridge_ioctl_tiocgserial(struct tty_struct *tty,
 
     memset(&tmp, 0, sizeof(tmp));
 
+    mutex_lock(&bridge->mutex);
+
     tmp.type = bridge->serial.type;
     tmp.line = bridge->serial.line;
     tmp.port = bridge->serial.port;
@@ -387,6 +338,8 @@ static int bridge_ioctl_tiocgserial(struct tty_struct *tty,
     tmp.custom_divisor = bridge->serial.custom_divisor;
     tmp.hub6 = bridge->serial.hub6;
     tmp.io_type = bridge->serial.io_type;
+
+    mutex_unlock(&bridge->mutex);
 
     if (copy_to_user((void __user *)arg, &tmp, sizeof(struct serial_struct))) {
       return -EFAULT;

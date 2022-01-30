@@ -6,6 +6,6 @@
 
 #define BRIDGE_SOCKET_DESC     "bdr-pi-tty-bridge-socket"
 #define BRIDGE_SOCKET_NAME     "\0" BRIDGE_SOCKET_DESC
-#define BRIDGE_SOCKET_NAME_LEN (strlen(BRIDGE_SOCKET_DESC)+1) // count leading null
+#define BRIDGE_SOCKET_NAME_LEN (sizeof(BRIDGE_SOCKET_NAME))
 
 #endif // _TTY_BRIDGE_COMMON_H_
