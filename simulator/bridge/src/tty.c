@@ -65,7 +65,7 @@ static int bridge_open(struct tty_struct *tty, struct file *file)
       return -ENOMEM;
     }
 
-    memset(&bridge, 0, sizeof(struct bridge_serial));
+    memset(bridge, 0, sizeof(*bridge));
     mutex_init(&bridge->mutex);
   }
 

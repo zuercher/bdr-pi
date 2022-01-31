@@ -6,6 +6,9 @@
 
 #define BRIDGE_SOCKET_DESC     "bdr-pi-tty-bridge-socket"
 #define BRIDGE_SOCKET_NAME     "\0" BRIDGE_SOCKET_DESC
-#define BRIDGE_SOCKET_NAME_LEN (sizeof(BRIDGE_SOCKET_NAME))
+
+// Length of BRIDGE_SOCKET_NAME (same as storage size of
+// BRIDGE_SOCKET_DESC) which counts the null terminator.
+#define BRIDGE_SOCKET_NAME_LEN (sizeof(BRIDGE_SOCKET_DESC))
 
 #endif // _TTY_BRIDGE_COMMON_H_
