@@ -3,6 +3,8 @@
 *.mod.c
 *.o
 .*.cmd
+pyenv/*
+__pycache__/*
 modules.order
 Module.symvers
 socket_test_driver

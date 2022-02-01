@@ -40,7 +40,13 @@ def main():
 
     ser = serial.serialposix.Serial(dev_name, timeout=3, write_timeout=3)
 
-    msgs = ['{"getVer":null}\n']
+    msgs = [
+        '{"getVer":null}\r\n',
+        '{"getStatus":null}\r\n',
+        '{"getCapabilities":null}\r\n',
+        '{"getLapCfg":null}\r\n',
+        '{"setTelemetry":{"rate":1}}\r\n',
+    ]
 
     try:
         for m in msgs:

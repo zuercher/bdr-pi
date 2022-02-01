@@ -273,7 +273,7 @@ static int bridge_tiocmset(struct tty_struct *tty,
   struct bridge_serial *bridge = tty->driver_data;
   unsigned int mcr;
 
-  pr_debug("fake racecap tiocmset set %08x\n, clear %08x", set, clear);
+  pr_debug("fake racecap tiocmset set %08x, clear %08x", set, clear);
 
   mutex_lock(&bridge->mutex);
 
