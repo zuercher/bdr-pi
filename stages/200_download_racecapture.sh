@@ -4,6 +4,9 @@ run_stage() {
     local RC_URL="$(curl -s https://podium.live/software | \
                          grep -Po '(?<=<a href=")[^"]*racecapture_linux_raspberrypi[^"]*.bz2[^"]*' | \
                          python3 -c 'import html, sys; [print(html.unescape(l), end="") for l in sys.stdin]')"
+
+    [[ -n "${RC_URL}" ]] || abort "unable to determine download URL"
+
     local RC_FILE="$(basename "${RC_URL}" | sed 's/\?.*//')"
 
     push_dir "/opt"
