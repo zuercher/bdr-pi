@@ -12,11 +12,14 @@ run_stage() {
 
     # download and extract as the setup user to keep the permissions correct
     report "downloading ${RC_URL}"
-    sudo -u "${SETUP_USER}" wget -O "${RC_FILE}" --no-verbose "${RC_URL}" || \
+    sudo wget -O "${RC_FILE}" --no-verbose "${RC_URL}" || \
         abort "unable to download ${RC_URL}"
 
     report "extracting ${RC_FILE}"
-    sudo -u "${SETUP_USER}" tar xfj "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
+    sudo tar xfj "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
+
+    report "fixing ownership"
+    sudo chown -R root:root /opt/racecapture
 
     [[ -d "/opt/racecapture" ]] || abort "missing /opt/racecapture directory"
 
