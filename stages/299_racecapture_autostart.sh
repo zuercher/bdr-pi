@@ -27,7 +27,7 @@ run_stage() {
       # ${START_FLAG}: start racecapture on login from tty1
       if [[ "\$(tty)" == "/dev/tty1" ]]; then
         echo
-        if ! read -t 5 -p "starting racecapture in 5s (press ENTER to abort) "; then
+        if ! read -t 3 -p "starting racecapture in 3s (press ENTER to abort) "; then
           printf "\nsend it!\n"
           "${SCRIPT_TARGET}"
         fi

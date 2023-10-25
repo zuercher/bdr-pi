@@ -10,19 +10,11 @@ DIR="{{SETUP_HOME}}"
 [[ "${DIR}" == "$(realpath "${DIR}")" ]] || abort "${DIR} must be absolute"
 [[ -d "${DIR}" ]] || abort "no such directory: ${DIR}"
 
-RC_DIR="${DIR}/racecapture"
+RC_DIR="/opt/racecapture"
 [[ -d "${RC_DIR}" ]] || abort "no such directory: ${RC_DIR}"
 
 LOG_DIR="${DIR}/logs"
 KIVY_DIR="${DIR}/.kivy"
-
-if lsmod | grep -q "rpi_ft5406"; then
-    # set up for the rpi display
-    cp -n "${RC_DIR}/ft5406_kivy_config.ini" "${KIVY_DIR}/config.ini"
-else
-    # let it auto-configure for other displays/inputs
-    rm -f "${KIVY_DIR}/config.ini"
-fi
 
 # Configure keyring to store Podium user credentials
 export PYTHON_KEYRING_BACKEND=sagecipher.keyring.Keyring
@@ -36,6 +28,13 @@ KEEP_N_LOGS=$((10))
 MIN_RUNTIME=$((30))
 SHORT_RUNTIME=$((0))
 
+RC_ARGS=(
+    -a
+    -c graphics:show_cursor:0
+    -m cursor
+    -c kivy:keyboard_mode:system
+)
+
 cd "${RC_DIR}" ||:
 while true; do
     # Delete all but the last KEEP_N_LOGS logs
@@ -44,7 +43,7 @@ while true; do
     LOGFILE="${LOG_DIR}/racecapture_$(date "+%Y%m%d_%H%M%S").log"
 
     START="$(date "+%s")"
-    if ./race_capture >> "${LOGFILE}" 2>&1; then
+    if ./race_capture "${RC_ARGS[@]}" >> "${LOGFILE}" 2>&1; then
         # clean exit, assume the user quit (or someone sent SIGINT/SIGQUIT)
         exit 0
     else

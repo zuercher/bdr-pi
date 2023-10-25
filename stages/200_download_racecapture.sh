@@ -1,34 +1,24 @@
 #!/bin/bash
 
 run_stage() {
-    RC_VERSION="${BDRPI_RACECAPTURE_VERSION:-2.2.0}"
-    RC_FILE="${BDRPI_RACECAPTURE_FILE:-racecapture_linux_raspberrypi_${RC_VERSION}.tar.bz2}"
-    RC_URL="${BDRPI_RACECAPTURE_URL:-https://autosportlabs-software.s3-us-west-2.amazonaws.com/${RC_FILE}}"
+    local RC_URL="$(curl -s https://podium.live/software | \
+                         grep -Po '(?<=<a href=")[^"]*racecapture_linux_raspberrypi[^"]*.bz2[^"]*' | \
+                         python3 -c 'import html, sys; [print(html.unescape(l), end="") for l in sys.stdin]')"
+    local RC_FILE="$(basename "$RC_APP_URL" | sed 's/\?.*//')"
 
-    report "installing additional packages for racecapture"
-
-    local PKGS=(
-        mesa-utils
-        libgles2
-        libegl1-mesa
-        libegl-mesa0
-        mtdev-tools
-        wget
-    )
-    apt-get install -q -y "${PKGS[@]}" || abort "unable to install packages: ${PKGS[*]}"
-
-    push_dir "${SETUP_HOME}"
+    push_dir "/opt"
 
     rm -f "${RC_FILE}"
 
     # download and extract as the setup user to keep the permissions correct
     report "downloading ${RC_URL}"
-    sudo -u "${SETUP_USER}" wget --no-verbose "${RC_URL}" || abort "unable to download ${RC_URL}"
+    sudo -u "${SETUP_USER}" wget -O "${RC_FILE}" --no-verbose "${RC_URL}" || \
+        abort "unable to download ${RC_URL}"
 
     report "extracting ${RC_FILE}"
     sudo -u "${SETUP_USER}" tar xfj "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
 
-    [[ -d "${SETUP_HOME}/racecapture" ]] || abort "missing ${SETUP_HOME}/racecapture directory"
+    [[ -d "/opt/racecapture" ]] || abort "missing /opt/racecapture directory"
 
     pop_dir
 }
