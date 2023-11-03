@@ -3,14 +3,14 @@
 run_stage() {
     report "checking lifepo4wered defaults"
 
-    local SETTINGS=(
+    declare -A SETTINGS=(
         [VBAT_MIN]="2800"
         [VBAT_SHDN]="2850"
         [AUTO_SHDN_TIME]="20"
         [PI_BOOT_TO]="900"
     )
 
-    local TO_UPDATE=()
+    declare -A TO_UPDATE=()
     for KEY in "${!SETTINGS[@]}"; do
         EXPECTED="${SETTINGS[${KEY}]}"
 
