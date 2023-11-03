@@ -12,9 +12,9 @@ run_stage() {
 
     declare -A TO_UPDATE=()
     for KEY in "${!SETTINGS[@]}"; do
-        EXPECTED="${SETTINGS[${KEY}]}"
+        local EXPECTED="${SETTINGS[${KEY}]}"
 
-        VALUE="$(lifepo4wered-cli get "${KEY}")"
+        local VALUE="$(lifepo4wered-cli get "${KEY}")"
 
         if [[ "${VALUE}" != "${EXPECTED}" ]]; then
             report "lifepo4wered ${KEY} is ${VALUE}, want ${EXPECTED}"
@@ -28,8 +28,8 @@ run_stage() {
     fi
 
     for KEY in "${TO_UPDATE[@]}"; do
-        VALUE="${SETTINGS[${KEY}]}"
-        report "setting lifepo4wered ${KEY} to ${VALUE}"
+        report "setting lifepo4wered ${KEY}"
+        local VALUE="${SETTINGS[${KEY}]}"
 
         lifepo4wered-cli set "${KEY}" "${VALUE}"
     done
