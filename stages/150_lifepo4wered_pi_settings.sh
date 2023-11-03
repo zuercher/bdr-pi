@@ -4,7 +4,7 @@ run_stage() {
     report "checking lifepo4wered defaults"
 
     declare -A SETTINGS=(
-        [VBAT_MIN]="2800"
+        [VBAT_MIN]="2750"
         [VBAT_SHDN]="2850"
         [AUTO_SHDN_TIME]="20"
         [PI_BOOT_TO]="900"
