@@ -10,7 +10,7 @@ run_stage() {
         [PI_BOOT_TO]="900"
     )
 
-    declare -A TO_UPDATE=()
+    declare -A TO_UPDATE
     for KEY in "${!SETTINGS[@]}"; do
         local EXPECTED="${SETTINGS[${KEY}]}"
 
