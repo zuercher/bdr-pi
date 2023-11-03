@@ -10,7 +10,7 @@ run_stage() {
         [PI_BOOT_TO]="900"
     )
 
-    declare -A TO_UPDATE
+    local UPDATED=false
     for KEY in "${!SETTINGS[@]}"; do
         local EXPECTED="${SETTINGS[${KEY}]}"
 
@@ -18,21 +18,16 @@ run_stage() {
 
         if [[ "${VALUE}" != "${EXPECTED}" ]]; then
             report "lifepo4wered ${KEY} is ${VALUE}, want ${EXPECTED}"
-            TO_UPDATE+=("${KEY}")
+
+            lifepo4wered-cli set "${KEY}" "${EXPECTED}"
+
+            UPDATED=true
         fi
     done
 
-    if [[ "${#TO_UPDATE[@]}" -eq 0 ]]; then
-        report "all lifepo4wered settings ok"
-        return 0
+    if "${UPDATED}"; then
+        report "all lifepo4wered settings updated"
+    else
+        report "all lifepow4ered sttings ok"
     fi
-
-    for KEY in "${TO_UPDATE[@]}"; do
-        report "setting lifepo4wered ${KEY}"
-        local VALUE="${SETTINGS[${KEY}]}"
-
-        lifepo4wered-cli set "${KEY}" "${VALUE}"
-    done
-
-    report "all lifepo4wered settings updated"
 }
