@@ -321,17 +321,31 @@ if [[ "$OS" != "Linux" ]]; then
     abort "OS is ${OS} -- this isn't going to work out."
 fi
 
-DISTRIBUTION="$(lsb_release -si)"
-if [[ "$DISTRIBUTION" != "Raspbian" ]]; then
-    echo "Expected a Raspbian distribution, but we'll muddle on..."
-fi
-
 if [[ "$(whoami)" == "root" ]]; then
     abort "run this as a normal user with access to sudo"
 fi
 
-REPO="https://github.com/zuercher/bdr-pi"
 BDR_DIR="${HOME}/.bdr-pi"
+mkdir -p "${BDR_DIR}" || abort "could not create dir: ${BDR_DIR}"
+
+# TODO: remove this block -- it only serves to help upgrade from
+# an older script version where state was nested within the repo.
+if [[ -d "${BDR_DIR}/.git" ]]; then
+    TMPSAVEDIR=""
+    if [[ -d "${BDR_DIR}/.state" ]]; then
+        TMPSAVEDIR="${HOME}/.save-state.$$"
+        mv "${BDR_DIR}/.state" "${TMPSAVEDIR}" || abort "failed to save state ahead of file reorg"
+    fi
+
+    rm -rf "${BDR_DIR:?}"/*
+
+    if [[ -n "${TMPSAVEDIR}" ]]; then
+        mv "${TMPSAVEDIR}" "${BDR_DIR}/state"
+    fi
+fi
+
+REPO="https://github.com/zuercher/bdr-pi"
+BDR_REPO_DIR="${HOME}/.bdr-pi/bdr-pi"
 
 if ! network_can_reach "${REPO}"; then
     perror "unable to reach ${REPO}, retrying for 30 seconds..."
@@ -376,29 +390,27 @@ if ! installed git; then
     fi
 fi
 
-REPO="https://github.com/zuercher/bdr-pi"
-BDR_DIR="${HOME}/.bdr-pi"
-if [[ -d "${BDR_DIR}/.git" ]]; then
+if [[ -d "${BDR_REPO_DIR}/.git" ]]; then
     # Git repository is present. Let's update it.
-    push_dir "${BDR_DIR}"
+    push_dir "${BDR_REPO_DIR}"
     echo -n "${REPO} "
     git pull || abort "unable to pull $(git remote get-url origin)"
     pop_dir
 else
     # No git repository. Clone it.
-    git clone "${REPO}" "${BDR_DIR}" || abort "unable to clone ${REPO}"
-    push_dir "${BDR_DIR}"
+    git clone "${REPO}" "${BDR_REPO_DIR}" || abort "unable to clone ${REPO}"
+    push_dir "${BDR_REPO_DIR}"
     # So it doesn't complain every time we pull
     git config pull.ff only
     pop_dir
 fi
 
-mkdir -p "${BDR_DIR}/.state" || abort "could not create state dir"
+mkdir -p "${BDR_DIR}/state" || abort "could not create state dir"
 mkdir -p "${BDR_DIR}/logs" || abort "could not create log dir"
 
 SETUP_LOGFILE="${BDR_DIR}/logs/setup_$(date -u "+%Y%m%d_%H%M%S").log"
 
-# Initial setup is complete, now transfer control to the code in BDR_DIR
+# Initial setup is complete, now transfer control to the code in BDR_REPO_DIR
 # Jump through some hoops to set SETUP_FLUSH_PID with script's PID so we
 # can send SIGUSR1 to it (which will flush logs). We also take care to
 # pass along the original user's name, path and tty.
@@ -409,5 +421,6 @@ script --quiet --flush --log-out "${SETUP_LOGFILE}" \
             SETUP_HOME=\"${HOME}\" \
             SETUP_TTY=\"$(tty)\" \
             SETUP_FLUSH_PID=\"\$PPID\" \
+            BDR_REPO_DIR=\"${BDR_REPO_DIR}\" \
             BDR_DIR=\"${BDR_DIR}\" \
-            \"${BDR_DIR}/update.sh\" $*'"
+            \"${BDR_REPO_DIR}/update.sh\" $*'"

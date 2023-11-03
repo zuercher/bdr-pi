@@ -15,7 +15,7 @@ for LIB in "${SCRIPT_DIR}/lib"/*.sh; do
     source "${LIB}"
 done
 
-if [[ "${BDR_DIR}" != "${SCRIPT_DIR}" ]]; then
+if [[ "${BDR_REPO_DIR}" != "${SCRIPT_DIR}" ]]; then
     abort "update.sh should not be run directly; use setup.sh"
 fi
 

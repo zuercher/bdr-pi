@@ -78,7 +78,7 @@ EOF
 # reboot_required triggers a reboot and arranges for setup.sh to be
 # run again on login.
 reboot_required() {
-    _on_reboot "\"${BDR_DIR}/setup.sh\""
+    _on_reboot "\"${BDR_REPO_DIR}/setup.sh\""
 }
 
 # reboot_is_required indicates if a reboot is required

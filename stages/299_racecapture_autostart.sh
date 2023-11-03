@@ -4,7 +4,7 @@ run_stage() {
     report "enabling auto-start of racecapture"
 
     local FILE="bdr_racecapture.sh"
-    local SCRIPT_TMPL="${BDR_DIR}/resources/${FILE}"
+    local SCRIPT_TMPL="${BDR_REPO_DIR}/resources/${FILE}"
     local SCRIPT_TARGET="${SETUP_HOME}/${FILE}"
 
     local ESCAPED_HOME="${SETUP_HOME//\//\\\/}"
