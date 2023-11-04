@@ -132,7 +132,7 @@ image() {
     RDISK="${DISK//\/dev\/disk//dev/rdisk}"
 
     # format the disk
-    ${SAFE} sudo diskutil eraseDisk FAT32 SDCARD MBRFormat "${DISK}" || \
+    ${SAFE} sudo diskutil eraseDisk FAT32 "BDR_PI" MBRFormat "${DISK}" || \
         abort "format operation failed"
 
     # unmount the disk
