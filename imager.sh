@@ -59,20 +59,28 @@ list_disks() {
     local PLIST="${TMPDIR:-/tmp}/.disk-plist.$$"
     local TOTAL=0
 
-    while IFS= read -r -d $'\0' VOLUME; do
-        diskutil list -plist ${TYPES[@]:-} "${VOLUME}" >"${PLIST}"
+    diskutil list -plist ${TYPES[@]:-} >"${PLIST}" || abort "error listing disks"
 
-        local NUM_DISKS="$(plutil -extract WholeDisks raw "${PLIST}")"
-        if [[ "${NUM_DISKS}" -gt 0 ]]; then
-            for INDEX in $(jot "${NUM_DISKS}" 0); do
-                local DISK="$(plutil -extract "WholeDisks.${INDEX}" raw "${PLIST}")"
-                if [[ -n "${DISK:-}" ]]; then
-                    echo "/dev/${DISK}  ${VOLUME}"
-                    let TOTAL=TOTAL+1
-                fi
-            done
-        fi
-    done < <(find -s /Volumes -depth 1 -print0)
+    local NUM_DISKS="$(plutil -extract AllDisksAndPartitions raw "${PLIST}")"
+    if [[ "${NUM_DISKS}" -gt 0 ]]; then
+        for INDEX in $(jot "${NUM_DISKS}" 0); do
+            local DISK="$( \
+                  plutil \
+                         -extract "AllDisksAndPartitions.${INDEX}.DeviceIdentifier" \
+                         raw "${PLIST}" )"
+            if [[ -z "${DISK}" ]]; then
+                continue
+            fi
+
+            local VOLUME="$( \
+                  plutil \
+                         -extract "AllDisksAndPartitions.${INDEX}.Partitions.0.MountPoint" \
+                         raw "${PLIST}" )"
+
+            echo "/dev/${DISK}  ${VOLUME:-?}"
+            let TOTAL=TOTAL+1
+        done
+    fi
 
     rm -f "${PLIST}"
 
@@ -89,6 +97,12 @@ image() {
         usage "ERROR: image: missing disk name (see list-disks)"
     fi
 
+    SAFE=""
+    if "${DRYRUN}"; then
+        echo "Dry-run mode enabled."
+        SAFE="echo"
+    fi
+
     local PLIST="${TMPDIR:-/tmp}/.disk-plist.$$"
     diskutil info -plist "${DISK}" >"${PLIST}" || abort "error getting disk info"
 
@@ -103,24 +117,40 @@ image() {
 
     echo "Volume size is approximately ${SIZE_GB} GiB (${SIZE})."
 
-    SAFE=""
-    if "${DRYRUN}"; then
-        echo "Dry-run mode enabled."
-        SAFE="echo"
+    local BLOCKSIZE="$(plutil -extract "DeviceBlockSize" raw "${PLIST}")"
+    if [[ -z "${BLOCKSIZE}" ]] || [[ "${BLOCKSIZE}" -eq 0 ]]; then
+        abort "cannot determine block size"
     fi
+    echo "Block size is ${BLOCKSIZE}."
 
-
-
-    ${SAFE} sudo diskutil eraseDisk FAT32 SDCARD MBRFormat "${DISK}" || \
-        abort "format operation failed"
-
-    # TODO: device should be /dev/rdisk?
-
-    # TODO: write zero to first MB (dd)
-    # TODO: write zero to last MB
+    rm -f "${PLIST}"
 
     # TODO: download image (need a list images thingy?)
     # TODO: check hash?
+
+    # rewrite /dev/diskX to /dev/rdiskX
+    RDISK="${DISK//\/dev\/disk//dev/rdisk}"
+
+    # format the disk
+    ${SAFE} sudo diskutil eraseDisk FAT32 SDCARD MBRFormat "${DISK}" || \
+        abort "format operation failed"
+
+    # unmount the disk
+    ${SAFE} diskutil unmountDisk "${DISK}" || abort "failed to unmount disk"
+
+    # zero first MB
+    let NBLKS=(1024*1024 / BLOCKSIZE)
+    ${SAFE} sudo dd bs="${BLOCKSIZE}" count="${NBLKS}" \
+            if=/dev/zero \
+            of="${RDISK}" || abort "failed to zero first MB"
+
+    # zero last MB
+    let SIZE_BLKS=(SIZE / 512)
+    let SBLKS=(SIZE_BLKS - NBLKS)
+    ${SAFE} sudo dd bs="${BLOCKSIZE}" oseek="${SBLKS}" count="${NBLKS}" \
+            if=/dev/zero \
+            of="${RDISK}" || abort "failed to zero last MB"
+
 
     # TODO: raspberry pi imager skips first 4kb (partition table), why?
     # TODO: write image to disk (dd?)
