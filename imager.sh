@@ -14,6 +14,9 @@
 #/#         Image the storage device and pre-configure bdr-pi
 #/#         installation scripting.
 #/#
+#/#     clear-cache
+#/#         Clear the local cache of images and image detatils.
+#/#
 
 set -u
 set -o pipefail
@@ -166,6 +169,7 @@ list_disks() {
 get_images() {
     local OSLIST="$(tmpfile oslist-json)"
 
+    # TODO: cache this file somewhere
     curl -s "${OSLIST_URL}" >"${OSLIST}" || abort "failed to download image list"
 
     local FILTERED_OSLIST="$(tmpfile oslist-filtered-json)"
@@ -305,6 +309,8 @@ image() {
     # rewrite /dev/diskX to /dev/rdiskX
     RDISK="${DISK//\/dev\/disk//dev/rdisk}"
 
+    # TODO: query wifi info
+
     # format the disk
     ${SAFE} sudo diskutil eraseDisk FAT32 "BDR_PI" MBRFormat "${DISK}" || \
         abort "format operation failed"
@@ -340,7 +346,25 @@ image() {
     # remount the disk
     ${SAFE} diskutil mountDisk "${DISK}" || abort "failed to re-mount disk"
 
+    # TODO: write wifi info to file in /boot (modify setup to find it)
+
+    # TODO: copy resources/firstrun.sh to /Volumes/bootfs/(boot/?)/
+
+    # TODO: append to /boot/cmdline.txt
+    # " systemd.run=/boot/firstrun.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target""
+    # (see downloadthread.cc)
+
     return 0
+}
+
+clear_cache() {
+    local SAFE=""
+    if "${DRYRUN}"; then
+        echo "Dry-run mode enabled."
+        SAFE="echo"
+    fi
+
+    ${SAFE} rm -rf "${CACHE_DIR}"
 }
 
 # Require bash
@@ -376,6 +400,12 @@ while [[ -n "${1:-}" ]]; do
         -n|-dry-run|--dry-run)
             DRYRUN=true
             shift
+            ;;
+
+        clear-cache)
+            shift
+            clear_cache "$@"
+            exit $?
             ;;
 
         list-disks)
