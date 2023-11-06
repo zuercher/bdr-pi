@@ -195,6 +195,21 @@ list_images() {
     return 0
 }
 
+prep_image() {
+    IMAGE="${1}"
+
+    if [[ "${IMAGE}" = *.xz ]]; then
+        local BASE="$(basename "${IMAGE}")"
+        local RESULT="$(tmpfile "${BASE/%\.xz/}")"
+        if [[ ! -f "${RESULT}" ]]; then
+            xz --decompress --stdout --thread=2 "${IMAGE}" > "${RESULT}"
+        fi
+        echo "${RESULT}"
+    else
+        echo "${IMAGE}"
+    fi
+}
+
 download_image() {
     local IMAGEURL="${1:-}"
     local HASH="${2:-}"
@@ -207,18 +222,23 @@ download_image() {
     local CACHE_FILE="${CACHE_DIR}/${FILE}"
 
     if [[ -f "${CACHE_FILE}" ]]; then
-        echo "using cached file ${CACHED_FILE}" >/dev/stderr
+        echo "using cached file ${CACHE_FILE}" >/dev/stderr
     else
         echo "downloading ${IMAGEURL}" >/dev/stderr
 
-        curl --progress -O "${CACHE_FILE}" "${IMAGEURL}" || \
+        curl --progress-bar --output "${CACHE_FILE}" "${IMAGEURL}" || \
             abort "failed to download ${IMAGEURL}"
     fi
 
     if [[ -n "${HASH}" ]]; then
-        local FILEHASH="$(shasum -a 256 "${CACHE_FILE}")"
+        echo "validating file..." >/dev/stderr
 
-        [[ "${FILEHASH}" == "${HASH}" ]] || abort "hash mismatch ${FILEHASH} vs ${HASH}"
+        local FILE="$(prep_image "${CACHE_FILE}")"
+        local FILEHASH="$(shasum -a 256 "${FILE}" | awk '{print $1}')"
+
+        [[ "${FILEHASH}" == "${HASH}" ]] || abort "hash mismatch got ${FILEHASH}, expected ${HASH}"
+
+        echo "ok" >/dev/stderr
     fi
 
     echo "${CACHE_FILE}"
@@ -260,17 +280,7 @@ image() {
         grep -E "^${PICK}:" |\
         cut -d: -f2-)"
 
-    echo "url: $IMAGEURL"
-    echo "hash: $IMAGEHASH"
-
-    # TODO: prompt for image (default legacy, 64-bit, lite?)
-    # (want to reuse promot stuff from lib -- need to templatize)
-
-#    if [[ "${IMAGE}" =~ ^http ]]; then
-#        download_image "${IMAGE}"
-#    else
-#        # copy
-#    fi
+    IMAGE="$(download_image "${IMAGEURL}" "${IMAGEHASH}")"
 
     local PLIST="$(tmpfile disk-plist)"
     diskutil info -plist "${DISK}" >"${PLIST}" || abort "error getting disk info"
@@ -292,18 +302,6 @@ image() {
     fi
     echo "Block size is ${BLOCKSIZE}."
 
-    # TODO: download image (need a list images thingy?)
-    # main images:
-    # jq '.os_list' oslist.json | jq '.[] | select(.devices // [] | contains(["pi4-64bit"])) | {"name":.name, "url":.url, "sha":.extract_sha256}'
-
-    # nested images
-    # jq '.os_list' oslist.json | jq '.[] | (.subitems // [])[] | select(.devices // [] | contains(["pi4-64bit"])) | {"name":.name, "url":.url, "sha":.extract_sha256}'
-
-    # pick the image we like:
-    # jq 'select(.name | test("Legacy"))' a | jq 'select(.name | test("Lite"))'
-
-    # TODO: check hash?
-
     # rewrite /dev/diskX to /dev/rdiskX
     RDISK="${DISK//\/dev\/disk//dev/rdisk}"
 
@@ -318,21 +316,29 @@ image() {
     let NBLKS=(1024*1024 / BLOCKSIZE)
     ${SAFE} sudo dd bs="${BLOCKSIZE}" count="${NBLKS}" \
             if=/dev/zero \
-            of="${RDISK}" || abort "failed to zero first MB"
+            of="${RDISK}" \
+            status=none || abort "failed to zero first MB"
 
     # zero last MB
     let SIZE_BLKS=(SIZE / 512)
     let SBLKS=(SIZE_BLKS - NBLKS)
     ${SAFE} sudo dd bs="${BLOCKSIZE}" oseek="${SBLKS}" count="${NBLKS}" \
             if=/dev/zero \
-            of="${RDISK}" || abort "failed to zero last MB"
+            of="${RDISK}" \
+            status=none || abort "failed to zero last MB"
 
 
-    # TODO: raspberry pi imager skips first 4kb (partition table), why?
-    # TODO: write image to disk (dd?)
-    # TODO: flush?
+    echo
+    echo "Writing image to disk... this could take a while..."
 
-    # TODO: eject? (diskutil?)
+    # Write the image. rpi-imager skips the first 4kb and then writes
+    # it last. Not sure why.
+    ${SAFE} sudo dd bs=1m if="$(prep_image "${IMAGE}")" of="${RDISK}" status=progress
+
+    echo "...done"
+
+    # remount the disk
+    ${SAFE} diskutil mountDisk "${DISK}" || abort "failed to re-mount disk"
 
     return 0
 }
@@ -350,13 +356,13 @@ if [[ "$OS" != "Darwin" ]]; then
 fi
 
 # These should just exist on macOS
-for TOOL in curl diskutil jot plutil shasum; do
+for TOOL in awk curl diskutil jot plutil shasum; do
     if ! installed "${TOOL}"; then
         abort "could not find ${TOOL}, is this macOS?"
     fi
 done
 
-for TOOL in jq; do
+for TOOL in jq xz; do
     if ! installed "${TOOL}"; then
         abort "could not find ${TOOL}, please install (homebrew works)"
     fi
