@@ -15,7 +15,7 @@ REBOOT_REQUIRED=false
 # reboot_configured indicates if the user's bashrc has a reboot scheduled
 reboot_configured() {
     local BASHRC="${SETUP_HOME}/.bashrc"
-    grep -q "# BEGIN_ON_REBOOT VIA" "${BASHRC}"
+    grep -q "# BEGIN_ON_REBOOT" "${BASHRC}"
 }
 
 # reboot_clear disables a scheduled reboot in the user's bashrc
@@ -26,7 +26,7 @@ reboot_clear() {
         abort "cannot clear reboot task without an existing ${BASHRC}"
     fi
 
-    sed --in-place -e "/# BEGIN_ON_REBOOT VIA/,/# END_ON_REBOOT/d" "${BASHRC}" || \
+    sed --in-place -e "/# BEGIN_ON_REBOOT/,/# END_ON_REBOOT/d" "${BASHRC}" || \
         abort "failed to clear reboot handler in ${BASHRC}"
 }
 
