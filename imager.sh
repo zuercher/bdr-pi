@@ -674,7 +674,7 @@ image() {
         mkdir -p "${VOLUME}" || abort "error creating ${VOLUME} for dry-run"
     else
         # Figure out the volume name of our disk (which is set by the image), and where it lives
-        VOLUME="$(list_disks | grep -F "${DISK}" | awk '{print $1}')"
+        VOLUME="$(list_disks | grep -F "${DISK}" | awk '{print $2}')"
 
         [[ -n "${VOLUME}" ]] || abort "could not find volume for ${DISK}"
     fi
@@ -698,7 +698,8 @@ image() {
     echo
     echo "Ejecting ${DISK}..."
 
-    ${SAFE} diskutil "${DISK}" || abort "failed to eject ${DISK}, but I think I'm done..."
+    ${SAFE} diskutil eject "${DISK}" || \
+        abort "failed to eject ${DISK}, but I think I'm done..."
 
     echo "Done!"
 
