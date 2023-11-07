@@ -85,6 +85,22 @@ prompt() {
     echo "${ANSWER}"
 }
 
+# prompt_yesno $1...=prompt
+#   prompts the user and returns their yes/no response
+prompt_yesno() {
+    local ANSWER
+
+    read -er -p "$* (y/N): " ANSWER
+    case "$(echo \"${ANSWER}\" | tr '[:lower]' '[:upper:]')" in
+        Y|YES)
+            echo "Y"
+            ;;
+        *)
+            echo "N"
+            ;;
+    esac
+}
+
 # prompt_pw $1...=prompt
 #   prompts the user with terminal echo disabled and returns their
 #   response, which may be empty
@@ -94,6 +110,215 @@ prompt_pw() {
     read -ers -p "$*: " ANSWER
     echo "${ANSWER}"
 }
+
+_SETUP_CONFIG_KEYS=()
+_SETUP_CONFIG_VALUES=()
+_SETUP_CONFIG_LOADED="false"
+
+_write_config() {
+    local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
+
+    _load_config_once
+    touch "${FILE}"
+
+    for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
+        local KEY="${_SETUP_CONFIG_KEYS[IDX]}"
+        local VALUE="${_SETUP_CONFIG_VALUES[IDX]}"
+
+        if [[ -z "${KEY}" ]]; then
+            continue
+        fi
+
+        if grep -q -E "^${KEY}=" "${FILE}"; then
+            sed -i '' "s/^${KEY}=.*/${KEY}=${VALUE}/" "${FILE}"
+        else
+            echo "${KEY}=${VALUE}" >>"${FILE}"
+        fi
+    done
+}
+
+_load_config() {
+    local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
+
+    _SETUP_CONFIG_KEYS=()
+    _SETUP_CONFIG_VALUES=()
+
+    if ! [[ -s "${FILE}" ]]; then
+        # missing or empty is ok
+        return 0
+    fi
+
+    local LINE
+    while IFS= read -r LINE; do
+        local KEY="${LINE%=*}"
+
+        if [[ "${KEY}" =~ ^[[:space:]]*# ]] || [[ -z "${KEY}" ]]; then
+            continue
+        fi
+
+        local VALUE="${LINE#"${KEY}"=}"
+        _SETUP_CONFIG_KEYS+=("${KEY}")
+        _SETUP_CONFIG_VALUES+=("${VALUE}")
+    done < "${FILE}"
+}
+
+_load_config_once() {
+    if ! "${_SETUP_CONFIG_LOADED}"; then
+        _load_config
+        _SETUP_CONFIG_LOADED="true"
+    fi
+}
+
+# clear all values and reset to initial state
+reset_setup_config() {
+    _SETUP_CONFIG_LOADED="false"
+    _SETUP_CONFIG_KEYS=()
+    _SETUP_CONFIG_VALUES=()
+}
+
+# set config value: $1=param-name, $2=value
+set_setup_config() {
+    local KEY="${1:-}"
+    local VALUE="${2:-}"
+
+    [[ -z "${KEY}" ]] && abort "cannot set config with empty config key"
+
+    _load_config_once
+
+    local FOUND=false
+    for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
+        if [[ "${_SETUP_CONFIG_KEYS[IDX]}" == "${KEY}" ]]; then
+            _SETUP_CONFIG_VALUES[IDX]="${VALUE}"
+            FOUND=true
+            break
+        fi
+    done
+
+    if ! "${FOUND}"; then
+        _SETUP_CONFIG_KEYS+=("${KEY}")
+        _SETUP_CONFIG_VALUES+=("${VALUE}")
+    fi
+
+    _write_config || abort "failed to update config"
+}
+
+# clear config key & value: $1=param-name
+clear_setup_config() {
+    local KEY="${1:-}"
+
+    [[ -z "${KEY}" ]] && abort "cannot clear config with empty config key"
+
+    _load_config_once
+
+    local FOUND="false"
+    for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
+        if [[ "${_SETUP_CONFIG_KEYS[IDX]}" == "${KEY}" ]]; then
+            _SETUP_CONFIG_KEYS[IDX]=""
+            _SETUP_CONFIG_VALUES[IDX]=""
+            FOUND="true"
+            break
+        fi
+    done
+
+    if "${FOUND}"; then
+        _write_config || abort "failed to update config"
+    fi
+
+    return 0
+}
+
+# get config value: $1=param-name
+get_setup_config() {
+    local KEY="${1:-}"
+
+    [[ -z "${KEY}" ]] && abort "cannot get empty config key"
+
+    _load_config_once
+
+    local VALUE=""
+    for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
+        if [[ "${_SETUP_CONFIG_KEYS[IDX]}" == "${KEY}" ]]; then
+            VALUE="${_SETUP_CONFIG_VALUES[IDX]}"
+            break
+        fi
+    done
+
+    echo "${VALUE}"
+}
+
+# set an array key: $1=array-name, $2=index or "append", $3=value
+set_setup_config_array() {
+    local KEY="${1:-}"
+    local INDEX="${2:-}"
+    local VALUE="${3:-}"
+
+    [[ -z "${KEY}" ]] && abort "cannot set empty config array key"
+    [[ -z "${INDEX}" ]] && abort "cannot set config array without index"
+
+    _load_config_once
+
+    local ARRAYKEY=""
+    if [[ "${INDEX}" != "append" ]]; then
+        ARRAYKEY="${KEY}.${INDEX}"
+        local FOUND=false
+        for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
+            if [[ "${_SETUP_CONFIG_KEYS[IDX]}" == "${ARRAYKEY}" ]]; then
+                FOUND=true
+                break
+            fi
+        done
+
+        "${FOUND}" || abort "unable to ${KEY}[${INDEX}] -- not found"
+    else
+        # append
+        local NEXT_INDEX
+        NEXT_INDEX="$(get_setup_config_array_size "${KEY}")"
+
+        ARRAYKEY="${KEY}.${NEXT_INDEX}"
+    fi
+
+    [[ -n "${ARRAYKEY}" ]] || abort "internal error computing array value key"
+
+    set_setup_config "${ARRAYKEY}" "${VALUE}"
+}
+
+# get an array key: $1=array-name, $2=index
+get_setup_config_array() {
+    local KEY="${1:-}"
+    local INDEX="${2:-}"
+
+    [[ -z "${KEY}" ]] && abort "cannot get with empty config array key"
+    [[ -z "${INDEX}" ]] && abort "cannot get config array without index"
+
+    _load_config_once
+
+    local ARRAYKEY="${KEY}.${INDEX}"
+    get_setup_config "${ARRAYKEY}"
+}
+
+# get an array's size: $1=array-name
+get_setup_config_array_size() {
+    local KEY="${1:-}"
+
+    [[ -z "${KEY}" ]] && abort "cannot get size with empty config array key"
+
+    _load_config_once
+
+    local LAST_INDEX="-1"
+    for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
+        if [[ "${_SETUP_CONFIG_KEYS[IDX]}" =~ ^${KEY}\.([0-9]+) ]]; then
+            local THIS_INDEX="${BASH_REMATCH[1]}"
+            if [[ ${THIS_INDEX} -gt ${LAST_INDEX} ]]; then
+                LAST_INDEX="${THIS_INDEX}"
+            fi
+        fi
+    done
+
+    let LAST_INDEX=LAST_INDEX+1
+    echo "${LAST_INDEX}"
+}
+
+ROOT_DIR="$(cd "$(dirname "$0}")" && pwd)"
 
 DRYRUN="false"
 
@@ -112,12 +337,14 @@ usage() {
     exit 1
 }
 
+# make a file in our temp directory
 tmpfile() {
-    local name="${BDRPI_TMP:-/tmp}/${1:-tmp}"
+    local name="${BDRPI_TMP}/${1:-tmp}"
     echo "${name}"
 }
 trap 'rm -rf "${BDRPI_TMP}"' EXIT
 
+# list disks for imaging
 list_disks() {
     declare -a TYPES=("external" "physical")
 
@@ -140,6 +367,7 @@ list_disks() {
 
     local NUM_DISKS="$(plutil -extract AllDisksAndPartitions raw "${PLIST}")"
     if [[ "${NUM_DISKS}" -gt 0 ]]; then
+        local INDEX
         for INDEX in $(jot "${NUM_DISKS}" 0); do
             local DISK="$( \
                   plutil \
@@ -166,55 +394,8 @@ list_disks() {
     return 0
 }
 
-get_images() {
-    local OSLIST="$(tmpfile oslist-json)"
-
-    # TODO: cache this file somewhere
-    curl -s "${OSLIST_URL}" >"${OSLIST}" || abort "failed to download image list"
-
-    local FILTERED_OSLIST="$(tmpfile oslist-filtered-json)"
-
-    # Get the top-level images.
-    {
-        jq '.os_list' "${OSLIST}" | \
-            jq '.[] | select(.devices // [] | contains(["pi4-64bit"])) | {"name":.name, "url":.url, "sha":.extract_sha256}' | \
-            jq 'select(.url != null)' >"${FILTERED_OSLIST}"
-    } || abort "failed to perform first filter pass on os list"
-
-    # Get nested images.
-    {
-        jq '.os_list' "${OSLIST}" | \
-            jq '.[] | (.subitems // [])[] | select(.devices // [] | contains(["pi4-64bit"])) | {"name":.name, "url":.url, "sha":.extract_sha256}' | \
-            jq 'select(.url != null)' >>"${FILTERED_OSLIST}"
-    } || abort "failed to perform second filter pass on os list"
-
-    echo "${FILTERED_OSLIST}"
-}
-
-list_images() {
-    local IMAGELIST="$(get_images "$@")"
-
-    jq -r '.name + "\n\t" + .url + "\n"' "${IMAGELIST}"
-
-    return 0
-}
-
-prep_image() {
-    IMAGE="${1}"
-
-    if [[ "${IMAGE}" = *.xz ]]; then
-        local BASE="$(basename "${IMAGE}")"
-        local RESULT="$(tmpfile "${BASE/%\.xz/}")"
-        if [[ ! -f "${RESULT}" ]]; then
-            xz --decompress --stdout --thread=2 "${IMAGE}" > "${RESULT}"
-        fi
-        echo "${RESULT}"
-    else
-        echo "${IMAGE}"
-    fi
-}
-
-download_image() {
+# download a resource $1=URL $2=sha256 (or omit for no checks)
+download_resource() {
     local IMAGEURL="${1:-}"
     local HASH="${2:-}"
 
@@ -248,6 +429,143 @@ download_image() {
     echo "${CACHE_FILE}"
 }
 
+# get a list of images via OSLIST_URL
+get_images() {
+    local OSLIST
+    OSLIST="$(tmpfile oslist-json)"
+
+    local FILTERED_OSLIST="$(tmpfile oslist-filtered-json)"
+
+    # Get the top-level images.
+    {
+        jq '.os_list' "${OSLIST}" | \
+            jq '.[] | select(.devices // [] | contains(["pi4-64bit"])) | {"name":.name, "url":.url, "sha":.extract_sha256}' | \
+            jq 'select(.url != null)' >"${FILTERED_OSLIST}"
+    } || abort "failed to perform first filter pass on os list"
+
+    # Get nested images.
+    {
+        jq '.os_list' "${OSLIST}" | \
+            jq '.[] | (.subitems // [])[] | select(.devices // [] | contains(["pi4-64bit"])) | {"name":.name, "url":.url, "sha":.extract_sha256}' | \
+            jq 'select(.url != null)' >>"${FILTERED_OSLIST}"
+    } || abort "failed to perform second filter pass on os list"
+
+    echo "${FILTERED_OSLIST}"
+}
+
+# print a list of images
+list_images() {
+    local IMAGELIST="$(get_images "$@")"
+
+    jq -r '.name + "\n\t" + .url + "\n"' "${IMAGELIST}"
+
+    return 0
+}
+
+# if the file is compressed, decompress it and return a path to the decompressed file,
+# otherwise just returns the file
+prep_image() {
+    IMAGE="${1}"
+
+    if [[ "${IMAGE}" = *.xz ]]; then
+        local BASE="$(basename "${IMAGE}")"
+        local RESULT="$(tmpfile "${BASE/%\.xz/}")"
+        if [[ ! -f "${RESULT}" ]]; then
+            xz --decompress --stdout --thread=2 "${IMAGE}" > "${RESULT}"
+        fi
+        echo "${RESULT}"
+    else
+        echo "${IMAGE}"
+    fi
+}
+
+# prompt the user to select an image to use
+select_image() {
+    local IMAGELIST="$(get_images "$@")"
+
+    jq -r '.name' "${IMAGELIST}" | nl -s $'.\t'
+
+    local DEFAULT="$(
+        jq -r '.name' "${IMAGELIST}" | \
+        nl -s: -w1 | \
+        grep Legacy | grep 64-bit | grep Lite |\
+        cut -d: -f1)"
+
+    local PICK
+    if [[ -n "${DEFAULT}" ]]; then
+        PICK="$(prompt_default "${DEFAULT}" "Select a base image:")"
+    else
+        PICK="$(prompt "Select a base image:")"
+    fi
+    [[ -n "${PICK}" ]] || abort "no image selected"
+
+    local IMAGEURL="$(
+        jq -r '.url' "${IMAGELIST}" | \
+        nl -s: -w1 | \
+        grep -E "^${PICK}:" |\
+        cut -d: -f2-)"
+    [[ -n "${IMAGEURL}" ]] || abort "no valid image selected"
+
+    local IMAGEHASH="$(
+        jq -r '.sha' "${IMAGELIST}" | \
+        nl -s: -w1 | \
+        grep -E "^${PICK}:" |\
+        cut -d: -f2-)"
+
+    local IMAGE="$(download_resource "${IMAGEURL}" "${IMAGEHASH}")"
+
+    echo "${IMAGE}"
+}
+
+# query use about configuring wifi
+set_wifi_confg() {
+    local FIRST=true
+    local ADD_WIFI
+    while true; do
+        echo >/dev/stderr
+
+        if "${FIRST}"; then
+            ADD_WIFI="$(prompt_yesno "Pre-configure wifi for post-boot configuration?")"
+            FIRST=false
+        else
+            ADD_WIFI="$(prompt_yesno "Pre-configure another wifi network?")"
+        fi
+
+        if [[ "${ADD_WIFI}" != "Y" ]]; then
+            break
+        fi
+
+        SSID="$(prompt "Enter an SSID:")"
+        PASS="$(prompt_pw "Enter a password for ${SSID}:")"
+
+        [[ -n "${SSID}" ]] && [[ -n "${PASS}" ]] || abort "network config requires both an SSID and password"
+
+        set_setup_config_array WIFI_SSID append "${SSID}"
+        set_setup_config_array WIFI_PASS append "${PASS}"
+    done
+
+    echo >/dev/stderr
+
+    ADD_WIFI="$(prompt_yesno "Prompt for additional networks during post-boot configuration?")"
+    if [[ "${ADD_WIFI}" == "Y" ]]; then
+        set_setup_config WIFI_PERFORM_SSID_SETUP "true"
+    else
+        set_setup_config WIFI_PERFORM_SSID_SETUP "false"
+    fi
+}
+
+set_lifepo4wered_config() {
+    local CONFIG_LIFEPO
+
+    CONFIG_LIFEPO="$(prompt_yesno "Configure lifepo4wered-pi UPS software during post-boot configuration?")"
+    if [[ "${CONFIG_LIFEPO}" == "Y" ]]; then
+        set_setup_config LIFEPO_PERFORM_SETUP="true"
+    else
+        set_setup_config LIFEPO_PERFORM_SETUP="false"
+    fi
+}
+
+# prepare and write an image to the given $1=disk
 image() {
     local DISK="${1:-}"
     if [[ -z "${DISK}" ]]; then
@@ -260,31 +578,7 @@ image() {
         SAFE="echo"
     fi
 
-    local IMAGELIST="$(get_images "$@")"
-
-    echo "Select base image:"
-    jq -r '.name' "${IMAGELIST}" | nl -s $'.\t'
-
-    local DEFAULT="$(
-        jq -r '.name' "${IMAGELIST}" | \
-        nl -s: -w1 | \
-        grep Legacy | grep 64-bit | grep Lite |\
-        cut -d: -f1)"
-
-    local PICK="$(prompt_default "${DEFAULT}" "Which image?")"
-
-    local IMAGEURL="$(
-        jq -r '.url' "${IMAGELIST}" | \
-        nl -s: -w1 | \
-        grep -E "^${PICK}:" |\
-        cut -d: -f2-)"
-    local IMAGEHASH="$(
-        jq -r '.sha' "${IMAGELIST}" | \
-        nl -s: -w1 | \
-        grep -E "^${PICK}:" |\
-        cut -d: -f2-)"
-
-    IMAGE="$(download_image "${IMAGEURL}" "${IMAGEHASH}")"
+    local IMAGE="$(select_image)"
 
     local PLIST="$(tmpfile disk-plist)"
     diskutil info -plist "${DISK}" >"${PLIST}" || abort "error getting disk info"
@@ -296,6 +590,7 @@ image() {
     if [[ "${SIZE}" -lt 32000000000 ]]; then
         abort "volume is less than 32 GiB... giving up"
     fi
+    local SIZE_GB
     let SIZE_GB=(SIZE / 1000000000)
 
     echo "Volume size is approximately ${SIZE_GB} GiB (${SIZE})."
@@ -308,8 +603,6 @@ image() {
 
     # rewrite /dev/diskX to /dev/rdiskX
     RDISK="${DISK//\/dev\/disk//dev/rdisk}"
-
-    # TODO: query wifi info
 
     # format the disk
     ${SAFE} sudo diskutil eraseDisk FAT32 "BDR_PI" MBRFormat "${DISK}" || \
@@ -346,13 +639,38 @@ image() {
     # remount the disk
     ${SAFE} diskutil mountDisk "${DISK}" || abort "failed to re-mount disk"
 
-    # TODO: write wifi info to file in /boot (modify setup to find it)
+    local VOLUME
+    if "${DRYRUN}"; then
+        # Pretend /tmp is our volume.
+        VOLUME="/tmp/example-boot-volume"
+        mkdir -p "${VOLUME}" || abort "error creating ${VOLUME} for dry-run"
+    else
+        # Figure out the volume name of our disk (which is set by the image), and where it lives
+        VOLUME="$(list_disks | grep -F "${DISK}" | awk '{print $1}')"
 
-    # TODO: copy resources/firstrun.sh to /Volumes/bootfs/(boot/?)/
+        [[ -n "${VOLUME}" ]] || abort "could not find volume for ${DISK}"
+    fi
 
-    # TODO: append to /boot/cmdline.txt
-    # " systemd.run=/boot/firstrun.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target""
-    # (see downloadthread.cc)
+    export BDRPI_SETUP_CONFIG_FILE="${VOLUME}/bdrpi-config.txt"
+    echo "Writing setup config to ${BDRPI_SETUP_CONFIG_FILE}"
+
+    set_wifi_config
+    set_lifepo4wered_config
+
+    cp "${ROOT_DIR}/resources/firstrun.sh" "${VOLUME}/bdrpi-firstrun.sh"
+    cp "${ROOT_DIR}/docs/setup.sh" "${VOLUME}/bdrpi-setup.sh"
+
+    if [[ -f "${VOLUME}/cmdline.txt" ]]; then
+        local CMDLINE="$(cat "${VOLUME}/cmdline.txt")"
+        CMDLINE="${CMDLINE} systemd.run=/boot/bdrpi-firstrun.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target"
+        ${SAFE} echo "${CMDLINE}" >"${VOLUME}/cmdline.txt" || abort "unable to write ${VOLUME}/cmdline.txt"
+    fi
+
+    echo "Ejecting ${DISK}..."
+
+    ${SAFE} diskutil "${DISK}" || abort "failed to eject ${DISK}, but I think I'm done..."
+
+    echo "Done!"
 
     return 0
 }
