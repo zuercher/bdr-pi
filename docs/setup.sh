@@ -73,7 +73,7 @@ prompt_yesno() {
     local ANSWER
 
     read -er -p "$* (y/N): " ANSWER
-    case "$(echo \"${ANSWER}\" | tr '[:lower]' '[:upper:]')" in
+    case "$(echo "${ANSWER}" | tr '[:lower:]' '[:upper:]')" in
         Y|YES)
             echo "Y"
             ;;

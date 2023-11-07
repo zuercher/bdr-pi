@@ -91,7 +91,7 @@ prompt_yesno() {
     local ANSWER
 
     read -er -p "$* (y/N): " ANSWER
-    case "$(echo \"${ANSWER}\" | tr '[:lower]' '[:upper:]')" in
+    case "$(echo "${ANSWER}" | tr '[:lower:]' '[:upper:]')" in
         Y|YES)
             echo "Y"
             ;;
@@ -407,16 +407,16 @@ download_resource() {
     local CACHE_FILE="${CACHE_DIR}/${FILE}"
 
     if [[ -f "${CACHE_FILE}" ]]; then
-        echo "using cached file ${CACHE_FILE}" >/dev/stderr
+        echo "Using cached file ${CACHE_FILE}" >/dev/stderr
     else
-        echo "downloading ${IMAGEURL}" >/dev/stderr
+        echo "Downloading ${IMAGEURL}..." >/dev/stderr
 
         curl --progress-bar --output "${CACHE_FILE}" "${IMAGEURL}" || \
             abort "failed to download ${IMAGEURL}"
     fi
 
     if [[ -n "${HASH}" ]]; then
-        echo "validating file..." >/dev/stderr
+        echo "Validating file..." >/dev/stderr
 
         local FILE="$(prep_image "${CACHE_FILE}")"
         local FILEHASH="$(shasum -a 256 "${FILE}" | awk '{print $1}')"
@@ -432,7 +432,8 @@ download_resource() {
 # get a list of images via OSLIST_URL
 get_images() {
     local OSLIST
-    OSLIST="$(tmpfile oslist-json)"
+    OSLIST="$(download_resource "${OSLIST_URL}")"
+    [[ -z "{OSLIST}" ]] && exit 1
 
     local FILTERED_OSLIST="$(tmpfile oslist-filtered-json)"
 
@@ -456,6 +457,7 @@ get_images() {
 # print a list of images
 list_images() {
     local IMAGELIST="$(get_images "$@")"
+    [[ -z "${IMAGELIST}" ]] && return 1
 
     jq -r '.name + "\n\t" + .url + "\n"' "${IMAGELIST}"
 
@@ -471,7 +473,7 @@ prep_image() {
         local BASE="$(basename "${IMAGE}")"
         local RESULT="$(tmpfile "${BASE/%\.xz/}")"
         if [[ ! -f "${RESULT}" ]]; then
-            xz --decompress --stdout --thread=2 "${IMAGE}" > "${RESULT}"
+            xz --decompress --stdout --thread=0 "${IMAGE}" > "${RESULT}"
         fi
         echo "${RESULT}"
     else
@@ -482,8 +484,9 @@ prep_image() {
 # prompt the user to select an image to use
 select_image() {
     local IMAGELIST="$(get_images "$@")"
+    [[ -z "${IMAGELIST}" ]] && exit 1
 
-    jq -r '.name' "${IMAGELIST}" | nl -s $'.\t'
+    jq -r '.name' "${IMAGELIST}" | nl -s $'.\t' >/dev/stderr || abort "couldn't print the list"
 
     local DEFAULT="$(
         jq -r '.name' "${IMAGELIST}" | \
@@ -493,9 +496,9 @@ select_image() {
 
     local PICK
     if [[ -n "${DEFAULT}" ]]; then
-        PICK="$(prompt_default "${DEFAULT}" "Select a base image:")"
+        PICK="$(prompt_default "${DEFAULT}" "Select a base image")"
     else
-        PICK="$(prompt "Select a base image:")"
+        PICK="$(prompt "Select a base image")"
     fi
     [[ -n "${PICK}" ]] || abort "no image selected"
 
@@ -513,12 +516,13 @@ select_image() {
         cut -d: -f2-)"
 
     local IMAGE="$(download_resource "${IMAGEURL}" "${IMAGEHASH}")"
+    [[ -z "${IMAGE}" ]] && exit 1
 
     echo "${IMAGE}"
 }
 
 # query use about configuring wifi
-set_wifi_confg() {
+set_wifi_config() {
     local FIRST=true
     local ADD_WIFI
     while true; do
@@ -535,8 +539,8 @@ set_wifi_confg() {
             break
         fi
 
-        SSID="$(prompt "Enter an SSID:")"
-        PASS="$(prompt_pw "Enter a password for ${SSID}:")"
+        SSID="$(prompt "Enter an SSID")"
+        PASS="$(prompt_pw "Enter a password for ${SSID}")"
 
         [[ -n "${SSID}" ]] && [[ -n "${PASS}" ]] || abort "network config requires both an SSID and password"
 
@@ -552,6 +556,7 @@ set_wifi_confg() {
     else
         set_setup_config WIFI_PERFORM_SSID_SETUP "false"
     fi
+    echo >/dev/stderr
 }
 
 set_lifepo4wered_config() {
@@ -559,9 +564,9 @@ set_lifepo4wered_config() {
 
     CONFIG_LIFEPO="$(prompt_yesno "Configure lifepo4wered-pi UPS software during post-boot configuration?")"
     if [[ "${CONFIG_LIFEPO}" == "Y" ]]; then
-        set_setup_config LIFEPO_PERFORM_SETUP="true"
+        set_setup_config LIFEPO_PERFORM_SETUP "true"
     else
-        set_setup_config LIFEPO_PERFORM_SETUP="false"
+        set_setup_config LIFEPO_PERFORM_SETUP "false"
     fi
 }
 
@@ -573,42 +578,63 @@ image() {
     fi
 
     local SAFE=""
+    local DRYRUN_NO_DISK="false"
     if "${DRYRUN}"; then
         echo "Dry-run mode enabled."
         SAFE="echo"
+
+        if ! [[ -e "${DISK}" ]]; then
+            DRYRUN_NO_DISK="true"
+        fi
     fi
 
     local IMAGE="$(select_image)"
+    [[ -z "${IMAGE}" ]] && exit 1
 
-    local PLIST="$(tmpfile disk-plist)"
-    diskutil info -plist "${DISK}" >"${PLIST}" || abort "error getting disk info"
+    echo
+    echo "Inspecting disk..."
+    local BLOCKSIZE
+    if "${DRYRUN_NO_DISK}"; then
+        # TODO: bash math fails on this disk size
+        echo "No Disk: setting arbitrary dry-run volume size of 512000000000"
+        SIZE="512000000000"
+        echo "No Disk: Setting aribitrary dry-run block size of 512"
+        BLOCKSIZE="512"
+    else
+        local PLIST="$(tmpfile disk-plist)"
+        diskutil info -plist "${DISK}" >"${PLIST}" || abort "error getting disk info"
 
-    local SIZE="$(plutil -extract "Size" raw "${PLIST}")"
-    if [[ -z "${SIZE}" ]]; then
-        abort "failed to determine disk size"
+        local SIZE="$(plutil -extract "Size" raw "${PLIST}")"
+        if [[ -z "${SIZE}" ]]; then
+            abort "failed to determine disk size"
+        fi
+        if [[ "${SIZE}" -lt 32000000000 ]]; then
+            abort "volume is less than 32 GiB... giving up"
+        fi
+        local SIZE_GB
+        let SIZE_GB=SIZE/1000000000
+
+        echo "Volume size is approximately ${SIZE_GB} GiB (${SIZE})."
+
+        BLOCKSIZE="$(plutil -extract "DeviceBlockSize" raw "${PLIST}")"
+        if [[ -z "${BLOCKSIZE}" ]] || [[ "${BLOCKSIZE}" -eq 0 ]]; then
+            abort "cannot determine block size"
+        fi
+        echo "Block size is ${BLOCKSIZE}."
     fi
-    if [[ "${SIZE}" -lt 32000000000 ]]; then
-        abort "volume is less than 32 GiB... giving up"
-    fi
-    local SIZE_GB
-    let SIZE_GB=(SIZE / 1000000000)
-
-    echo "Volume size is approximately ${SIZE_GB} GiB (${SIZE})."
-
-    local BLOCKSIZE="$(plutil -extract "DeviceBlockSize" raw "${PLIST}")"
-    if [[ -z "${BLOCKSIZE}" ]] || [[ "${BLOCKSIZE}" -eq 0 ]]; then
-        abort "cannot determine block size"
-    fi
-    echo "Block size is ${BLOCKSIZE}."
 
     # rewrite /dev/diskX to /dev/rdiskX
     RDISK="${DISK//\/dev\/disk//dev/rdisk}"
 
     # format the disk
+    echo
+    echo "Formatting disk..."
     ${SAFE} sudo diskutil eraseDisk FAT32 "BDR_PI" MBRFormat "${DISK}" || \
         abort "format operation failed"
 
     # unmount the disk
+    echo
+    echo "Preparing disk..."
     ${SAFE} diskutil unmountDisk "${DISK}" || abort "failed to unmount disk"
 
     # zero first MB
@@ -628,7 +654,7 @@ image() {
 
 
     echo
-    echo "Writing image to disk... this could take a while..."
+    echo "Writing image... (this could take a while)"
 
     # Write the image. rpi-imager skips the first 4kb and then writes
     # it last. Not sure why.
@@ -636,6 +662,8 @@ image() {
 
     echo "...done"
 
+    echo
+    echo "Mounting disk for post-image tweaks..."
     # remount the disk
     ${SAFE} diskutil mountDisk "${DISK}" || abort "failed to re-mount disk"
 
@@ -652,6 +680,7 @@ image() {
     fi
 
     export BDRPI_SETUP_CONFIG_FILE="${VOLUME}/bdrpi-config.txt"
+    echo
     echo "Writing setup config to ${BDRPI_SETUP_CONFIG_FILE}"
 
     set_wifi_config
@@ -666,6 +695,7 @@ image() {
         ${SAFE} echo "${CMDLINE}" >"${VOLUME}/cmdline.txt" || abort "unable to write ${VOLUME}/cmdline.txt"
     fi
 
+    echo
     echo "Ejecting ${DISK}..."
 
     ${SAFE} diskutil "${DISK}" || abort "failed to eject ${DISK}, but I think I'm done..."
