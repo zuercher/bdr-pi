@@ -53,6 +53,22 @@ prompt() {
     echo "${ANSWER}"
 }
 
+# prompt_yesno $1...=prompt
+#   prompts the user and returns their yes/no response
+prompt_yesno() {
+    local ANSWER
+
+    read -er -p "$* (y/N): " ANSWER
+    case "$(echo \"${ANSWER}\" | tr '[:lower]' '[:upper:]')" in
+        Y|YES)
+            echo "Y"
+            ;;
+        *)
+            echo "N"
+            ;;
+    esac
+}
+
 # prompt_pw $1...=prompt
 #   prompts the user with terminal echo disabled and returns their
 #   response, which may be empty

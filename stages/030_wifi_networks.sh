@@ -59,8 +59,8 @@ run_stage() {
     echo "use default priority SSIDs as backup networks (e.g. PAWDF wifi)"
     while true; do
         local RESP
-        RESP="$(prompt "add a default priority SSID? [y/N]" | tr '[:lower:]' '[:upper:]')"
-        if [[ "${RESP}" != "Y" ]] && [[ "${RESP}" != "YES" ]]; then
+        RESP="$(prompt_yesno "add a default priority SSID?")"
+        if [[ "${RESP}" != "Y" ]]; then
             break
         fi
 
@@ -70,8 +70,8 @@ run_stage() {
     echo "use high priority SSIDs as primary networks (e.g. the car's wifi)"
     while true; do
         local RESP
-        RESP="$(prompt "add a high priority SSID? [y/N]" | tr '[:lower:]' '[:upper:]')"
-        if [[ "${RESP}" != "Y" ]] && [[ "${RESP}" != "YES" ]]; then
+        RESP="$(prompt_yesno "add a high priority SSID?")"
+        if [[ "${RESP}" != "Y" ]]; then
             break
         fi
 
