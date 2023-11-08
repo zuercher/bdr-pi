@@ -78,3 +78,15 @@ prompt_pw() {
     read -ers -p "$*: " ANSWER
     echo "${ANSWER}"
 }
+
+# sed_inplace ...
+#   runs sed with the given arguments and the appropriate "edit
+#   in-place, no backup" flag for the OS. Mostly so we can test
+#   on macOS.
+sed_inplace() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}

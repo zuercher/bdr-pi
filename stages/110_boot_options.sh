@@ -7,13 +7,13 @@ run_stage() {
     if ! grep -q "logo\.nologo" /boot/cmdline.txt; then
         report "disabling boot logo"
 
-        sed -i '1 s/$/ logo.nologo/' /boot/cmdline.txt
+        sed_inplace '1 s/$/ logo.nologo/' /boot/cmdline.txt
     fi
 
     if ! grep -q "consoleblank=0" /boot/cmdline.txt; then
         report "disabling console blanking"
 
-        sed -i '1 s/$/ consoleblank=0/' /boot/cmdline.txt
+        sed_inplace '1 s/$/ consoleblank=0/' /boot/cmdline.txt
     fi
 
     boot_config_set "all" "disable_splash" "1"

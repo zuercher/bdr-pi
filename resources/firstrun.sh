@@ -5,9 +5,17 @@ logger "starting $0"
 [[ -z "${BDRPI_CONFIG}" ]] && BDRPI_CONFIG="/boot/bdrpi-config.txt"
 [[ -z "${BDRPI_SETUP_SH}" ]] && BDRPI_CONFIG="/boot/bdrpi-setup.sh"
 
+sed_inplace() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 cleanup() {
     # disable running this script on boot
-    sed -i 's/ systemd.run.*//g' /boot/cmdline.txt
+    sed_inplace 's/ systemd.run.*//g' /boot/cmdline.txt
 
     # clean ourselves up
     rm -f /boot/bdrpi-firstrun.sh
@@ -22,7 +30,7 @@ abort() {
 }
 
 getconfig() {
-    grep -E "^FIRST_RUN_${1}=" "${BDRPI_CONFIG}" | cut -d= -f2-
+    grep -E "^FIRST_RUN_${1}=" "${BDRPI_CONFIG}" | tail -n 1 | cut -d= -f2-
 }
 
 # create user with PW from /boot/bdrpi-config.txt
@@ -54,10 +62,10 @@ if [[ "${FIRST_USER}" != "${USER}" ]]; then
     usermod -m -d "/home/${USER}" "${USER}"
     groupmod -n "${USER}" "${FIRST_GROUP}"
     for F in /etc/subuid /etc/subgid; do
-        sed -i "s/^${FIRST_USER}:/${USER}:/" "${F}"
+        sed_inplace "s/^${FIRST_USER}:/${USER}:/" "${F}"
     done
     if [ -f /etc/sudoers.d/010_pi-nopasswd ]; then
-        sed -i "s/^${FIRST_USER} /${USER} /" /etc/sudoers.d/010_pi-nopasswd
+        sed_inplace "s/^${FIRST_USER} /${USER} /" /etc/sudoers.d/010_pi-nopasswd
     fi
 fi
 

@@ -6,6 +6,7 @@ set -u
 #{{include fs.sh}}#
 #{{include io.sh}}#
 #{{include network.sh}}#
+#{{include setup_config.sh}}#
 
 # Require bash
 # shellcheck disable=SC2292
@@ -25,51 +26,58 @@ fi
 BDR_DIR="${HOME}/.bdr-pi"
 mkdir -p "${BDR_DIR}" || abort "could not create dir: ${BDR_DIR}"
 
-# TODO: remove this block -- it only serves to help upgrade from
-# an older script version where state was nested within the repo.
-if [[ -d "${BDR_DIR}/.git" ]]; then
-    TMPSAVEDIR=""
-    if [[ -d "${BDR_DIR}/.state" ]]; then
-        TMPSAVEDIR="${HOME}/.save-state.$$"
-        mv "${BDR_DIR}/.state" "${TMPSAVEDIR}" || abort "failed to save state ahead of file reorg"
-    fi
-
-    rm -rf "${BDR_DIR:?}"/*
-
-    if [[ -n "${TMPSAVEDIR}" ]]; then
-        mv "${TMPSAVEDIR}" "${BDR_DIR}/state"
-    fi
-fi
-
 REPO="https://github.com/zuercher/bdr-pi"
 BDR_REPO_DIR="${HOME}/.bdr-pi/bdr-pi"
 
-if ! network_can_reach "${REPO}"; then
-    perror "unable to reach ${REPO}, retrying for 30 seconds..."
-    N=0
-    NETWORK_OK=false
-    while [[ "${N}" -lt 30 ]] && ! "${NETWORK_OK}"; do
-        N=$((N + 1))
-        sleep 1
+FIRST_BOOT=false
+while [[ -n "${1:-}" ]]; do
+    case "$1" in
+        --first-boot)
+            FIRST_BOOT=true
+            shift
+            ;;
+        *)
+            abort "usage: $0 [--first-boot]"
+    esac
+done
 
+NEWTORK_OK=false
+if ! "${FIRST_BOOT}"; then
+    N=0
+    NUM_ATTEMPTS=30
+    while [[ "${N}" -lt "${NUM_ATTEMPTS}" ]]; do
         if network_can_reach "${REPO}"; then
-            NETWORK_OK="true"
+            NETWORK_OK=true
+            break
         fi
+
+        N=$((N + 1))
+        LEFT=$((NUM_ATTEMPTS - N))
+        perror "unable to reach ${REPO}, will retry ${LEFT} more times..."
+        sleep 1
     done
 
     if ! "${NETWORK_OK}"; then
         perror "failed to reach ${REPO}, starting wifi setup..."
-        wireless_network_setup
+
+        if "${FIRST_BOOT}"; then
+            wireless_network_setup --first-boot
+        else
+            wireless_network_setup
+        fi
 
         report "wireless setup complete; waiting for the internet to become reachable..."
 
         N=0
+        NUM_ATTEMPTS=30
         while ! network_can_reach "${REPO}"; do
             N=$((N + 1))
             if [[ "${N}" -ge 60 ]]; then
                 abort "failed to reach ${REPO} for 60 seconds, something's fucky"
             fi
 
+            LEFT=$((NUM_ATTEMPTS - N))
+            perror "unable to reach ${REPO}, will retry ${LEFT} more times..."
             sleep 1
         done
     fi

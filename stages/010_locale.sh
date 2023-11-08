@@ -14,7 +14,7 @@ run_stage() {
     ENCODING="$(echo "${LOCALE_LINE}" | cut -f2 -d " ")"
 
     echo "${LOCALE} ${ENCODING}" > /etc/locale.gen
-    sed -i "s/^\s*LANG=\S*/LANG=${LOCALE}/" /etc/default/locale
+    sed_inplace "s/^\s*LANG=\S*/LANG=${LOCALE}/" /etc/default/locale
     dpkg-reconfigure -f noninteractive locales || abort "failed to generate locales"
 
     export LANG="${LOCALE}"

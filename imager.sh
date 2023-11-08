@@ -111,6 +111,18 @@ prompt_pw() {
     echo "${ANSWER}"
 }
 
+# sed_inplace ...
+#   runs sed with the given arguments and the appropriate "edit
+#   in-place, no backup" flag for the OS. Mostly so we can test
+#   on macOS.
+sed_inplace() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 _SETUP_CONFIG_KEYS=()
 _SETUP_CONFIG_VALUES=()
 _SETUP_CONFIG_LOADED="false"
@@ -119,21 +131,15 @@ _write_config() {
     local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
 
     _load_config_once
+
+    rm -f "${FILE}"
     touch "${FILE}"
 
     for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
         local KEY="${_SETUP_CONFIG_KEYS[IDX]}"
         local VALUE="${_SETUP_CONFIG_VALUES[IDX]}"
 
-        if [[ -z "${KEY}" ]]; then
-            continue
-        fi
-
-        if grep -q -E "^${KEY}=" "${FILE}"; then
-            sed -i '' "s/^${KEY}=.*/${KEY}=${VALUE}/" "${FILE}"
-        else
-            echo "${KEY}=${VALUE}" >>"${FILE}"
-        fi
+        echo "${KEY}=${VALUE}" >>"${FILE}"
     done
 }
 
@@ -314,8 +320,33 @@ get_setup_config_array_size() {
         fi
     done
 
-    let LAST_INDEX=LAST_INDEX+1
+    LAST_INDEX=$((LAST_INDEX+1))
     echo "${LAST_INDEX}"
+}
+
+# clear an array: $1=array-name
+clear_setup_config_array() {
+    local KEY="${1:-}"
+
+    [[ -z "${KEY}" ]] && abort "cannot clear config with empty config array key"
+
+    _load_config_once
+
+    local FOUND="false"
+    for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
+        if [[ "${_SETUP_CONFIG_KEYS[IDX]}" =~ ^${KEY}\.[0-9]+ ]]; then
+            _SETUP_CONFIG_KEYS[IDX]=""
+            _SETUP_CONFIG_VALUES[IDX]=""
+            FOUND="true"
+        fi
+    done
+
+    if "${FOUND}"; then
+        _write_config || abort "failed to update config"
+
+        # easier than mangling arrays
+        reset_setup_config
+    fi
 }
 
 ROOT_DIR="$(cd "$(dirname "$0}")" && pwd)"
@@ -383,7 +414,7 @@ list_disks() {
                          raw "${PLIST}" )"
 
             echo "/dev/${DISK}  ${VOLUME:-?}"
-            let TOTAL=TOTAL+1
+            TOTAL=$((TOTAL+1))
         done
     fi
 
@@ -407,23 +438,23 @@ download_resource() {
     local CACHE_FILE="${CACHE_DIR}/${FILE}"
 
     if [[ -f "${CACHE_FILE}" ]]; then
-        echo "Using cached file ${CACHE_FILE}" >/dev/stderr
+        perror "Using cached file ${CACHE_FILE}"
     else
-        echo "Downloading ${IMAGEURL}..." >/dev/stderr
+        perror "Downloading ${IMAGEURL}..."
 
         curl --progress-bar --output "${CACHE_FILE}" "${IMAGEURL}" || \
             abort "failed to download ${IMAGEURL}"
     fi
 
     if [[ -n "${HASH}" ]]; then
-        echo "Validating file..." >/dev/stderr
+        perror "Validating file..."
 
         local FILE="$(prep_image "${CACHE_FILE}")"
         local FILEHASH="$(shasum -a 256 "${FILE}" | awk '{print $1}')"
 
         [[ "${FILEHASH}" == "${HASH}" ]] || abort "hash mismatch got ${FILEHASH}, expected ${HASH}"
 
-        echo "ok" >/dev/stderr
+        perror "ok"
     fi
 
     echo "${CACHE_FILE}"
@@ -523,44 +554,61 @@ select_image() {
 
 # query use about configuring wifi
 set_wifi_config() {
-    local FIRST=true
+    local NUM=0
     local ADD_WIFI
     while true; do
-        echo >/dev/stderr
+        perror
 
-        if "${FIRST}"; then
-            ADD_WIFI="$(prompt_yesno "Pre-configure wifi for post-boot configuration?")"
-            FIRST=false
+        if [[ "${NUM}" -eq 0 ]]; then
+            perror "Preconfiguring a wifi network allows bdrpi configuration to proceed"
+            perror "on first boot without user intervention."
+
+            ADD_WIFI="$(prompt_yesno "Pre-configure wifi?")"
         else
+            if [[ "${NUM}" -eq 1 ]]; then
+                perror "Preconfiguring additional wifi networks (e.g. the pepwave) allows bdrpi"
+                perror "configuration to proceed with zero intervention."
+            fi
+
             ADD_WIFI="$(prompt_yesno "Pre-configure another wifi network?")"
         fi
 
         if [[ "${ADD_WIFI}" != "Y" ]]; then
             break
         fi
+        NUM=$((NUM+1))
 
         SSID="$(prompt "Enter an SSID")"
         PASS="$(prompt_pw "Enter a password for ${SSID}")"
 
         [[ -n "${SSID}" ]] && [[ -n "${PASS}" ]] || abort "network config requires both an SSID and password"
 
+        HIGH_PRIO="$(prompt_yesno "Make ${SSID} preferred?")"
+
         set_setup_config_array WIFI_SSID append "${SSID}"
         set_setup_config_array WIFI_PASS append "${PASS}"
+
+        if [[ "${HIGH_PRIO}" == "Y" ]]; then
+            set_setup_config_array WIFI_PRIO append 10
+        else
+            set_setup_config_array WIFI_PRIO append 0
+        fi
     done
 
-    echo >/dev/stderr
+    perror
 
-    ADD_WIFI="$(prompt_yesno "Prompt for additional networks during post-boot configuration?")"
+    ADD_WIFI="$(prompt_yesno "Skip querying for additional networks during post-boot configuration?")"
     if [[ "${ADD_WIFI}" == "Y" ]]; then
-        set_setup_config WIFI_PERFORM_SSID_SETUP "true"
-    else
         set_setup_config WIFI_PERFORM_SSID_SETUP "false"
+    else
+        set_setup_config WIFI_PERFORM_SSID_SETUP "true"
     fi
-    echo >/dev/stderr
 }
 
 set_lifepo4wered_config() {
     local CONFIG_LIFEPO
+
+    perror "Configuring lifepo4wered-pi requires the hardware be present."
 
     CONFIG_LIFEPO="$(prompt_yesno "Configure lifepo4wered-pi UPS software during post-boot configuration?")"
     if [[ "${CONFIG_LIFEPO}" == "Y" ]]; then
@@ -568,6 +616,21 @@ set_lifepo4wered_config() {
     else
         set_setup_config LIFEPO_PERFORM_SETUP "false"
     fi
+}
+
+set_user_config() {
+    local USER PASS
+
+    perror "User configuration. Password is temporarily stored in the image."
+
+    USER="$(prompt_default "pi" "Select a username")"
+    [[ -n "${USER}" ]] || abort "must select a username"
+
+    PASS="$(prompt_pw "Password")"
+    [[ -n "${PASS}" ]] || abort "must select a pasword"
+
+    set_setup_config FIRST_RUN_USER "${USER}"
+    set_setup_config FIRST_RUN_PASS "${PASS}"
 }
 
 # prepare and write an image to the given $1=disk
@@ -580,7 +643,7 @@ image() {
     local SAFE=""
     local DRYRUN_NO_DISK="false"
     if "${DRYRUN}"; then
-        echo "Dry-run mode enabled."
+        perror "Dry-run mode enabled."
         SAFE="echo"
 
         if ! [[ -e "${DISK}" ]]; then
@@ -591,14 +654,14 @@ image() {
     local IMAGE="$(select_image)"
     [[ -z "${IMAGE}" ]] && exit 1
 
-    echo
-    echo "Inspecting disk..."
+    perror
+    perror "Inspecting disk..."
     local BLOCKSIZE
     if "${DRYRUN_NO_DISK}"; then
         # TODO: bash math fails on this disk size
-        echo "No Disk: setting arbitrary dry-run volume size of 512000000000"
+        perror "No Disk: setting arbitrary dry-run volume size of 512000000000"
         SIZE="512000000000"
-        echo "No Disk: Setting aribitrary dry-run block size of 512"
+        perror "No Disk: Setting aribitrary dry-run block size of 512"
         BLOCKSIZE="512"
     else
         local PLIST="$(tmpfile disk-plist)"
@@ -611,59 +674,57 @@ image() {
         if [[ "${SIZE}" -lt 32000000000 ]]; then
             abort "volume is less than 32 GiB... giving up"
         fi
-        local SIZE_GB
-        let SIZE_GB=SIZE/1000000000
+        local SIZE_GB=$((SIZE/1000000000))
 
-        echo "Volume size is approximately ${SIZE_GB} GiB (${SIZE})."
+        perror "Volume size is approximately ${SIZE_GB} GiB (${SIZE})."
 
         BLOCKSIZE="$(plutil -extract "DeviceBlockSize" raw "${PLIST}")"
         if [[ -z "${BLOCKSIZE}" ]] || [[ "${BLOCKSIZE}" -eq 0 ]]; then
             abort "cannot determine block size"
         fi
-        echo "Block size is ${BLOCKSIZE}."
+        perror "Block size is ${BLOCKSIZE}."
     fi
 
     # rewrite /dev/diskX to /dev/rdiskX
     RDISK="${DISK//\/dev\/disk//dev/rdisk}"
 
     # format the disk
-    echo
-    echo "Formatting disk..."
+    perror
+    perror "Formatting disk..."
     ${SAFE} sudo diskutil eraseDisk FAT32 "BDR_PI" MBRFormat "${DISK}" || \
         abort "format operation failed"
 
     # unmount the disk
-    echo
-    echo "Preparing disk..."
+    perror
+    perror"Preparing disk..."
     ${SAFE} diskutil unmountDisk "${DISK}" || abort "failed to unmount disk"
 
     # zero first MB
-    let NBLKS=(1024*1024 / BLOCKSIZE)
+    local NBLKS=$((1024*1024 / BLOCKSIZE))
     ${SAFE} sudo dd bs="${BLOCKSIZE}" count="${NBLKS}" \
             if=/dev/zero \
             of="${RDISK}" \
             status=none || abort "failed to zero first MB"
 
     # zero last MB
-    let SIZE_BLKS=(SIZE / 512)
-    let SBLKS=(SIZE_BLKS - NBLKS)
+    local SIZE_BLKS=$((SIZE / 512))
+    local SBLKS=$((SIZE_BLKS - NBLKS))
     ${SAFE} sudo dd bs="${BLOCKSIZE}" oseek="${SBLKS}" count="${NBLKS}" \
             if=/dev/zero \
             of="${RDISK}" \
             status=none || abort "failed to zero last MB"
 
-
-    echo
-    echo "Writing image... (this could take a while)"
+    perror
+    perror "Writing image... (this could take a while)"
 
     # Write the image. rpi-imager skips the first 4kb and then writes
     # it last. Not sure why.
     ${SAFE} sudo dd bs=1m if="$(prep_image "${IMAGE}")" of="${RDISK}" status=progress
 
-    echo "...done"
+    perror "...done"
 
-    echo
-    echo "Mounting disk for post-image tweaks..."
+    perror
+    perror "Mounting disk for post-image tweaks..."
     # remount the disk
     ${SAFE} diskutil mountDisk "${DISK}" || abort "failed to re-mount disk"
 
@@ -680,10 +741,13 @@ image() {
     fi
 
     export BDRPI_SETUP_CONFIG_FILE="${VOLUME}/bdrpi-config.txt"
-    echo
-    echo "Writing setup config to ${BDRPI_SETUP_CONFIG_FILE}"
+    perror
+    perror "Writing setup config to ${BDRPI_SETUP_CONFIG_FILE}"
 
+    set_user_config
+    perror
     set_wifi_config
+    perror
     set_lifepo4wered_config
 
     cp "${ROOT_DIR}/resources/firstrun.sh" "${VOLUME}/bdrpi-firstrun.sh"
@@ -695,13 +759,13 @@ image() {
         ${SAFE} echo "${CMDLINE}" >"${VOLUME}/cmdline.txt" || abort "unable to write ${VOLUME}/cmdline.txt"
     fi
 
-    echo
-    echo "Ejecting ${DISK}..."
+    perror
+    perror "Ejecting ${DISK}..."
 
     ${SAFE} diskutil eject "${DISK}" || \
         abort "failed to eject ${DISK}, but I think I'm done..."
 
-    echo "Done!"
+    perror "Done!"
 
     return 0
 }

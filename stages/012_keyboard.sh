@@ -13,7 +13,7 @@ run_stage() {
 
     report "setting keyboard layout to ${LAYOUT}"
 
-    sed -i "s/^\s*XKBLAYOUT=\S*/XKBLAYOUT=\"${LAYOUT}\"/" "${CONFIG}"
+    sed_inplace "s/^\s*XKBLAYOUT=\S*/XKBLAYOUT=\"${LAYOUT}\"/" "${CONFIG}"
 
     reprt "setting ${CTRL_OPT} (caps lock is control)"
 
@@ -23,7 +23,7 @@ run_stage() {
     else
         OPTIONS="${OPTIONS},${CTRL_OPT}"
     fi
-    sed -i "s/^\s*XKBOPTIONS=\S*/XKBOPTIONS=\"${OPTIONS}\"/" "${CONFIG}"
+    sed_inplace "s/^\s*XKBOPTIONS=\S*/XKBOPTIONS=\"${OPTIONS}\"/" "${CONFIG}"
 
     reboot_required
 }

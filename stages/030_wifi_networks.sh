@@ -64,7 +64,7 @@ run_stage() {
             break
         fi
 
-        wireless_add_network 0
+        wireless_prompt_add_network 0
     done
 
     echo "use high priority SSIDs as primary networks (e.g. the car's wifi)"
@@ -75,6 +75,6 @@ run_stage() {
             break
         fi
 
-        wireless_add_network 10
+        wireless_prompt_add_network 10
     done
 }

@@ -9,6 +9,7 @@ _NETWORK_SH="${BASH_SOURCE[0]}"
 _NETWORK_LIB_DIR="$(cd "$(dirname "${_NETWORK_SH}")" && pwd)"
 source "${_NETWORK_LIB_DIR}/io.sh"
 source "${_NETWORK_LIB_DIR}/fs.sh"
+source "${_NETWORK_LIB_DIR}/setup_config.sh"
 #{{end_exclude}}#
 
 # network_can_reach <url> tests if the current network can reach the
@@ -123,31 +124,12 @@ wireless_device_setup() {
     return ${RC}
 }
 
-# wireless_add_network $1=priority $2=[skippable] adds a single SSID
-# to the network configuration with the given priority (0 is lowest).
-# If any second argument is given, returns success if no SSID is
-# specified.
+# wireless_add_network $1=SSID $2=PSK $3=prioritypriority adds a
+# single SSID to the network configuration.
 wireless_add_network() {
-    local PRIORITY="$1"
-    local SKIPPABLE=false
-    local SSID_PROMPT="Wireless SSID"
-    if [[ $# -gt 1 ]]; then
-        SKIPPABLE=true
-        SSID_PROMPT="Wireless SSID (empty to skip)"
-    fi
-    local SSID=""
-    while [[ -z "${SSID}" ]]; do
-        SSID=$(prompt "${SSID_PROMPT}")
-        if "${SKIPPABLE}" && [[ -z "${SSID}" ]]; then
-            report "trying to continue with existing network config, good luck!"
-            return 0
-        fi
-    done
-    local PSK=""
-    while [[ -z "${PSK}" ]]; do
-        PSK=$(prompt_pw "Wireless passphrase for ${SSID}")
-        echo
-    done
+    local IFACE
+    IFACE="$(wireless_first_interface)"
+    [[ -z "${IFACE}" ]] && abort "no wireless interface found"
 
     wpa_cli -i "${IFACE}" list_networks \
         | tail -n +2 | cut -f -2 \
@@ -188,10 +170,41 @@ wireless_add_network() {
     done
 
     return 0
+
 }
 
-# wireless_network_setup queries the user for an SSID and password
-# and configures them via wpa_cli.
+# wireless_prompt_add_network $1=priority $2=[skippable] prompts for
+# and adds a single SSID to the network configuration with the given
+# priority (0 is lowest). If any second argument is given, it accepts
+# an empty SSID and returns success if none is given.
+wireless_prompt_add_network() {
+    local PRIORITY="$1"
+    local SKIPPABLE=false
+    local SSID_PROMPT="Wireless SSID"
+    if [[ $# -gt 1 ]]; then
+        SKIPPABLE=true
+        SSID_PROMPT="Wireless SSID (empty to skip)"
+    fi
+    local SSID=""
+    while [[ -z "${SSID}" ]]; do
+        SSID=$(prompt "${SSID_PROMPT}")
+        if "${SKIPPABLE}" && [[ -z "${SSID}" ]]; then
+            report "trying to continue with existing network config, good luck!"
+            return 0
+        fi
+    done
+    local PSK=""
+    while [[ -z "${PSK}" ]]; do
+        PSK=$(prompt_pw "Wireless passphrase for ${SSID}")
+        echo
+    done
+
+    wireless_add_network "${SSID}" "${PSK}" "${PRIORITY}"
+}
+
+# wireless_network_setup queries the user for an SSID and password and
+# configures them via wpa_cli. Wireless network config is loaded from
+# the boot setup, if found.
 wireless_network_setup() {
     local IFACE
     IFACE="$(wireless_first_interface)"
@@ -208,8 +221,29 @@ wireless_network_setup() {
         abort "wireless device regulatory config failed, good luck!"
     fi
 
-    report "adding low-priority wireless network for set-up..."
-    wireless_add_network 0 skippable
+    local NUM_CONFIGS="$(get_setup_config_array_size WIFI_SSID)"
+    if [[ -n "${NUM_CONFIGS}" ]] && [[ "${NUM_CONFIGS}" -gt 0 ]]; then
+        local IDX=0
+        while [[ "${IDX}" -lt "${NUM_CONFIGS}" ]]; do
+            local SSID="$(get_setup_config_array WIFI_SSID "${IDX}")"
+            local PASS="$(get_setup_config_array WIFI_PASS "${IDX}")"
+            local PRIO="$(get_setup_config_array WIFI_PRIO "${IDX}")"
+
+            wireless_add_network "${SSID}" "${PASS}" "${PRIO}"
+        done
+
+        clear_setup_config_array WIFI_SSID
+        clear_setup_config_array WIFI_PASS
+        clear_setup_config_array WIFI_PRIO
+    fi
+
+    local PERFORM_SETUP="$(get_setup_config_array WIFI_PERFORM_SSID_SETUP)"
+    if [[ -n "${PERFORM_SETUP}" ]] && [[ "${PERFORM_SETUP}" == "true" ]]; then
+        report "adding low-priority wireless network for set-up..."
+        wireless_prompt_add_network 0 skippable
+    else
+        report "skipping wireless network prompts, as directed by image setup config"
+    fi
 
     return 0
 }
