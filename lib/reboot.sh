@@ -24,6 +24,7 @@ reboot_clear() {
 
     if [[ ! -f "${BASHRC}" ]]; then
         abort "cannot clear reboot task without an existing ${BASHRC}"
+        return
     fi
 
     sed_inplace -e "/# BEGIN_ON_REBOOT/,/# END_ON_REBOOT/d" "${BASHRC}" || \
@@ -35,6 +36,7 @@ _on_reboot() {
 
     if [[ ! -f "${BASHRC}" ]]; then
         abort "cannot schedule reboot task without an existing ${BASHRC}"
+        return
     fi
 
     local TTYPE="terminal"

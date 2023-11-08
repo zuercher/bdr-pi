@@ -227,3 +227,21 @@ expect_mock_called_with_args() {
         exit 1
     fi
 }
+
+debug_mocks() {
+    echo "mocked functions:"
+    local FN
+    for FN in "${_MOCK_FUNCS[@]}"; do
+        echo "  ${FN}"
+    done
+    echo "other mocks:"
+    for FN in "${_MOCK_OTHERS[@]}"; do
+        echo "  ${FN}"
+    done
+    echo "mock calls:"
+    if [[ -f "${_MOCK_CALLS}" ]]; then
+        cat "${_MOCK_CALLS}" | sed -e 's/^/  /'
+    else
+        echo "  (none)"
+    fi
+}
