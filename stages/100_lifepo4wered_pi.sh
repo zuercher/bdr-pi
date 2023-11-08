@@ -1,6 +1,12 @@
 #!/bin/bash
 
 run_stage() {
+    local PERFORM_SETUP="$(get_setup_config LIFEPO_PERFORM_SETUP)"
+    if [[ -n "${PERFORM_SETUP}" ]] && [[ "${PERFORM_SETUP}" != "true" ]]; then
+        report "skipping LiFePO4wered-Pi setup, as instructed by image config"
+        return 0
+    fi
+
     report "installing additional packages for LiFePO4wered-Pi"
 
     local PKGS=(

@@ -1,6 +1,12 @@
 #!/bin/bash
 
 run_stage() {
+    local PERFORM_SETUP="$(get_setup_config LIFEPO_PERFORM_SETUP)"
+    if [[ -n "${PERFORM_SETUP}" ]] && [[ "${PERFORM_SETUP}" != "true" ]]; then
+        report "skipping LiFePO4wered-Pi defaults, as instructed by image config"
+        return 0
+    fi
+
     report "checking lifepo4wered defaults"
 
     declare -A SETTINGS=(
