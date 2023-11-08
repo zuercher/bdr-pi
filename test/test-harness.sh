@@ -57,7 +57,7 @@ runsuite() {
         fi
         END="$(date '+%s')"
 
-        let DURATION=END-START
+        DURATION=$((END-START))
         echo "(${DURATION}s)"
 
         if "${FAILED_TEST}"; then

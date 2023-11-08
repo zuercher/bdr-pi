@@ -18,21 +18,15 @@ _write_config() {
     local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
 
     _load_config_once
+
+    rm -f "${FILE}"
     touch "${FILE}"
 
     for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
         local KEY="${_SETUP_CONFIG_KEYS[IDX]}"
         local VALUE="${_SETUP_CONFIG_VALUES[IDX]}"
 
-        if [[ -z "${KEY}" ]]; then
-            continue
-        fi
-
-        if grep -q -E "^${KEY}=" "${FILE}"; then
-            sed -i '' "s/^${KEY}=.*/${KEY}=${VALUE}/" "${FILE}"
-        else
-            echo "${KEY}=${VALUE}" >>"${FILE}"
-        fi
+        echo "${KEY}=${VALUE}" >>"${FILE}"
     done
 }
 
@@ -213,6 +207,31 @@ get_setup_config_array_size() {
         fi
     done
 
-    let LAST_INDEX=LAST_INDEX+1
+    LAST_INDEX=$((LAST_INDEX+1))
     echo "${LAST_INDEX}"
+}
+
+# clear an array: $1=array-name
+clear_setup_config_array() {
+    local KEY="${1:-}"
+
+    [[ -z "${KEY}" ]] && abort "cannot clear config with empty config array key"
+
+    _load_config_once
+
+    local FOUND="false"
+    for IDX in "${!_SETUP_CONFIG_KEYS[@]}"; do
+        if [[ "${_SETUP_CONFIG_KEYS[IDX]}" =~ ^${KEY}\.[0-9]+ ]]; then
+            _SETUP_CONFIG_KEYS[IDX]=""
+            _SETUP_CONFIG_VALUES[IDX]=""
+            FOUND="true"
+        fi
+    done
+
+    if "${FOUND}"; then
+        _write_config || abort "failed to update config"
+
+        # easier than mangling arrays
+        reset_setup_config
+    fi
 }

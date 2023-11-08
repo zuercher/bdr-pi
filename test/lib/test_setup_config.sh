@@ -106,4 +106,22 @@ test_set_setup_config_array_replace() {
     assert_eq "$(get_setup_config_array "ARRAY" "2")" "third"
 }
 
+test_set_setup_config_array_clear() {
+    set_setup_config_array "ARRAY" "append" "first" || assert_failed "error setting ARRAY[0]=first"
+    set_setup_config_array "ARRAY" "append" "second" || assert_failed "error setting ARRAY[1]=second"
+    set_setup_config_array "ARRAY" "append" "third" || assert_failed "error setting ARRAY[2]=third"
+
+    assert_eq "$(get_setup_config_array "ARRAY" "0")" "first"
+    assert_eq "$(get_setup_config_array "ARRAY" "1")" "second"
+    assert_eq "$(get_setup_config_array "ARRAY" "2")" "third"
+
+    clear_setup_config_array "ARRAY"
+
+    assert_eq "$(get_setup_config_array_size ARRAY)" "0"
+
+    reset_setup_config
+
+    assert_eq "$(get_setup_config_array_size ARRAY)" "0"
+}
+
 source "${_TEST_ROOT_DIR}/test-harness.sh"
