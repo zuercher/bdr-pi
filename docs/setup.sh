@@ -295,6 +295,29 @@ wireless_prompt_add_network() {
     wireless_add_network "${SSID}" "${PSK}" "${PRIORITY}"
 }
 
+# wireless_network_setup_preconfigured iterates over pre-configured
+# networks in the image setup config and configures them. When
+# completed, it removes the networks from the image config.
+wireless_newtork_setup_preconfigured() {
+    local NUM_CONFIGS="$(get_setup_config_array_size WIFI_SSID)"
+    if [[ -z "${NUM_CONFIGS}" ]] || [[ "${NUM_CONFIGS}" -eq 0 ]]; then
+        return 0
+    fi
+
+    local IDX=0
+    while [[ "${IDX}" -lt "${NUM_CONFIGS}" ]]; do
+        local SSID="$(get_setup_config_array WIFI_SSID "${IDX}")"
+        local PASS="$(get_setup_config_array WIFI_PASS "${IDX}")"
+        local PRIO="$(get_setup_config_array WIFI_PRIO "${IDX}")"
+
+        wireless_add_network "${SSID}" "${PASS}" "${PRIO}"
+    done
+
+    clear_setup_config_array WIFI_SSID
+    clear_setup_config_array WIFI_PASS
+    clear_setup_config_array WIFI_PRIO
+}
+
 # wireless_network_setup queries the user for an SSID and password and
 # configures them via wpa_cli. Wireless network config is loaded from
 # the boot setup, if found.
@@ -314,24 +337,10 @@ wireless_network_setup() {
         abort "wireless device regulatory config failed, good luck!"
     fi
 
-    local NUM_CONFIGS="$(get_setup_config_array_size WIFI_SSID)"
-    if [[ -n "${NUM_CONFIGS}" ]] && [[ "${NUM_CONFIGS}" -gt 0 ]]; then
-        local IDX=0
-        while [[ "${IDX}" -lt "${NUM_CONFIGS}" ]]; do
-            local SSID="$(get_setup_config_array WIFI_SSID "${IDX}")"
-            local PASS="$(get_setup_config_array WIFI_PASS "${IDX}")"
-            local PRIO="$(get_setup_config_array WIFI_PRIO "${IDX}")"
+    wireless_network_setup_preconfigured
 
-            wireless_add_network "${SSID}" "${PASS}" "${PRIO}"
-        done
-
-        clear_setup_config_array WIFI_SSID
-        clear_setup_config_array WIFI_PASS
-        clear_setup_config_array WIFI_PRIO
-    fi
-
-    local PERFORM_SETUP="$(get_setup_config_array WIFI_PERFORM_SSID_SETUP)"
-    if [[ -n "${PERFORM_SETUP}" ]] && [[ "${PERFORM_SETUP}" == "true" ]]; then
+    local PERFORM_SETUP="$(get_setup_config WIFI_PERFORM_SSID_SETUP)"
+    if [[ -z "${PERFORM_SETUP}" ]] || [[ "${PERFORM_SETUP}" == "true" ]]; then
         report "adding low-priority wireless network for set-up..."
         wireless_prompt_add_network 0 skippable
     else
