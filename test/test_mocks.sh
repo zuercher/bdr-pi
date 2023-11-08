@@ -23,6 +23,14 @@ test_mock_success() {
     assert_succeeds expect_mock_called example_function
 }
 
+test_mock_success_binary() {
+    mock_success sed
+
+    sed x y z
+
+    assert_succeeds expect_mock_called sed
+}
+
 test_expect_mock_called_with_args() {
     # test mock_success
     mock_success example_function

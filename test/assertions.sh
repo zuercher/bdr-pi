@@ -25,3 +25,31 @@ assert_fails() {
     "$@" && assert_failed "command $*: passed with rc $?"
     return 0
 }
+
+assert_stderr_contains() {
+    local EXPECTED="$1"
+    shift
+
+    local STDERR
+    STDERR="$( "$@" 2>&1 >/dev/null || :)"
+
+    if [[ "${STDERR}" =~ ${EXPECTED} ]]; then
+        return 0
+    fi
+
+    assert_failed "command $*: expected stderr with ${EXPECTED}; got ${STDERR}"
+}
+
+assert_stdout_contains() {
+    local EXPECTED="$1"
+    shift
+
+    local STDOUT
+    STDOUT="$( "$@" 2>/dev/null || :)"
+
+    if [[ "${STDOUT}" =~ ${EXPECTED} ]]; then
+        return 0
+    fi
+
+    assert_failed "command $*: expected stdout with ${EXPECTED}; got ${STDOUT}"
+}

@@ -9,7 +9,7 @@ _IO_SH_INCLUDED=1
 
 # perror prints its arguments to stderr.
 perror() {
-    printf "%s\n" "$@" >/dev/stderr
+    printf "%s\n" "$*" >/dev/stderr
     return 0
 }
 
@@ -23,9 +23,9 @@ abort() {
 # is set, just its arguments)
 report() {
     if [[ -n "${STAGE_NAME:-}" ]]; then
-        printf "  %s: %s\n" "${STAGE_NAME}" "$@"
+        printf "  %s: %s\n" "${STAGE_NAME}" "$*"
     else
-        printf "%s\n" "$@"
+        printf "%s\n" "$*"
     fi
 }
 
@@ -58,7 +58,7 @@ prompt() {
 prompt_yesno() {
     local ANSWER
 
-    read -er -p "$* (y/N): " ANSWER
+    read -er -p "$* [y/N]: " ANSWER
     case "$(echo "${ANSWER}" | tr '[:lower:]' '[:upper:]')" in
         Y|YES)
             echo "Y"
