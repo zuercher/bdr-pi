@@ -35,18 +35,25 @@ runsuite() {
     local FAILED=false
 
     if [ -n "${BEFORE_ALL}" ]; then
-        "${BEFORE_ALL}"
+        if ! "${BEFORE_ALL}"; then
+            FAILED=true
+            echo "before_all FAILED"
+        fi
     fi
 
     for TEST in "${SUITE[@]}"; do
         rm -f "${TEST_OUTPUT}"
 
         if [ -n "${BEFORE_EACH}" ]; then
-            "${BEFORE_EACH}"
+            if ! "${BEFORE_EACH}"; then
+                echo "  ${TEST}: before_each FAILED"
+                FAILED=true
+                continue
+            fi
         fi
 
         local FAILED_TEST=false
-        echo -n "  $TEST: "
+        echo -n "  ${TEST}: "
         START="$(date '+%s')"
         if ( "${TEST}" > "${TEST_OUTPUT}" ); then
             echo -n "ok "
@@ -65,12 +72,18 @@ runsuite() {
         fi
 
         if [ -n "${AFTER_EACH}" ]; then
-            "${AFTER_EACH}"
+            if ! "${AFTER_EACH}"; then
+                echo "  ${TEST}: after_each FAILED"
+                FAILED=true
+            fi
         fi
     done
 
     if [ -n "${AFTER_ALL}" ]; then
-        "${AFTER_ALL}"
+        if ! "${AFTER_ALL}"; then
+            echo "after_all FAILED"
+            FAILED=true
+        fi
     fi
 
     rm -f "${TEST_OUTPUT}"
