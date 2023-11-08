@@ -8,7 +8,12 @@ _BOOT_CONFIG_SH_INCLUDED=1
 _BOOT_CONFIG_SH="${BASH_SOURCE[0]}"
 _BOOT_CONFIG_LIB_DIR="$(cd "$(dirname "${_BOOT_CONFIG_SH}")" && pwd)"
 source "${_BOOT_CONFIG_LIB_DIR}/io.sh"
+source "${_BOOT_CONFIG_LIB_DIR}/reboot.sh"
 #{{end_exclude}}#
+
+_config_txt() {
+    echo "${BDRPI_BOOT_CONGIG_TXT:-/boot/config.txt}"
+}
 
 # boot_config_contains_regex $1=section $2=regex returns success if
 # /boot/config.txt contains a line matching regex within section
@@ -25,7 +30,7 @@ boot_config_contains_regex() {
                if (substr($0, 0, 1) == "[") { C = $0 }
                else if (C == S) { print $0 }
              }' \
-             /boot/config.txt | \
+             "$(_config_txt)" | \
         grep -E "${REGEX}"
     )"
 
@@ -56,14 +61,14 @@ boot_config_printf() {
     shift
 
     local LAST_SECTION
-    LAST_SECTION="$(grep -E '^\[' /boot/config.txt | tail -n 1)"
+    LAST_SECTION="$(grep -E '^\[' "$(_config_txt)" | tail -n 1)"
     if [[ "${LAST_SECTION}" != "[${SECTION}]" ]]; then
-        printf "\n[%s]\n" "${SECTION}" >>/boot/config.txt || \
-            abort "failed to add section ${SECTION} to /boot/config.txt"
+        printf "\n[%s]\n" "${SECTION}" >>"$(_config_txt)" || \
+            abort "failed to add section ${SECTION} to $(_config_txt)"
     fi
 
     # shellcheck disable=SC2059
-    printf "$@" >>/boot/config.txt || abort "failed to append ${SECTION} to /boot/config.txt"
+    printf "$@" >>"$(_config_txt)" || abort "failed to append ${SECTION} to $(_config_txt)"
 
     reboot_required
 }
@@ -76,6 +81,9 @@ boot_config_replace() {
     local SECTION="$1"
     local KEY="$2"
     local VALUE="$3"
+
+    local CONFIG="$(_config_txt)"
+    local BACKUP="$(_config_txt)~"
 
     if awk -v S="[${SECTION}]" \
            -v C='[all]' \
@@ -95,8 +103,8 @@ boot_config_replace() {
                 print $0
               }
            }' \
-           /boot/config.txt >/boot/config.txt~; then
-        if mv /boot/config.txt~ /boot/config.txt; then
+           "${CONFIG}" >"${BACKUP}"; then
+        if mv "${BACKUP}" "${CONFIG}"; then
             reboot_required
             return 0
         fi
