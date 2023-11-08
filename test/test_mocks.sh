@@ -20,7 +20,25 @@ test_mock_success() {
 
     example_function
 
-    expect_mock_called example_function
+    assert_succeeds expect_mock_called example_function
+}
+
+test_expect_mock_called_with_args() {
+    # test mock_success
+    mock_success example_function
+
+    example_function a b c
+
+    assert_succeeds expect_mock_called_with_args example_function a b c
+
+    # test mock_error
+    clear_mocks
+
+    mock_error example_function
+
+    example_function a b c
+
+    assert_succeeds expect_mock_called_with_args example_function a b c
 }
 
 source "${_TEST_ROOT_DIR}/test-harness.sh"

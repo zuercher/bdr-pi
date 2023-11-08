@@ -16,3 +16,12 @@ assert_ne() {
 
     [[ "${1}" != "${2}" ]] || assert_failed "assert ne: ${1} == ${2}"
 }
+
+assert_succeeds() {
+    "$@" || assert_failed "command $*: failed with rc $?"
+}
+
+assert_fails() {
+    "$@" && assert_failed "command $*: passed with rc $?"
+    return 0
+}

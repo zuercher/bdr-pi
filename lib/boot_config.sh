@@ -12,7 +12,7 @@ source "${_BOOT_CONFIG_LIB_DIR}/reboot.sh"
 #{{end_exclude}}#
 
 _config_txt() {
-    echo "${BDRPI_BOOT_CONGIG_TXT:-/boot/config.txt}"
+    echo "${BDRPI_BOOT_CONFIG_TXT:-/boot/config.txt}"
 }
 
 # boot_config_contains_regex $1=section $2=regex returns success if
@@ -60,15 +60,18 @@ boot_config_printf() {
     local SECTION="$1"
     shift
 
+    local CONFIG_TXT="$(_config_txt)"
+    touch "${CONFIG_TXT}"
+
     local LAST_SECTION
-    LAST_SECTION="$(grep -E '^\[' "$(_config_txt)" | tail -n 1)"
+    LAST_SECTION="$(grep -E '^\[' "${CONFIG_TXT}" | tail -n 1)"
     if [[ "${LAST_SECTION}" != "[${SECTION}]" ]]; then
         printf "\n[%s]\n" "${SECTION}" >>"$(_config_txt)" || \
-            abort "failed to add section ${SECTION} to $(_config_txt)"
+            abort "failed to add section ${SECTION} to ${CONFIG_TXT}"
     fi
 
     # shellcheck disable=SC2059
-    printf "$@" >>"$(_config_txt)" || abort "failed to append ${SECTION} to $(_config_txt)"
+    printf "$@" >>"${CONFIG_TXT}" || abort "failed to append ${SECTION} to ${CONFIG_TXT}"
 
     reboot_required
 }
@@ -89,6 +92,7 @@ boot_config_replace() {
            -v C='[all]' \
            -v K="${KEY}" \
            -v V="${VALUE}" \
+           -v EC="1" \
            '{
               if (substr($0, 0, 1) == "[") {
                 C = $0
@@ -96,13 +100,15 @@ boot_config_replace() {
               } else if (C == S) {
                 if (match($0, "^#?" K "=")) {
                   print K "=" V
+                  EC = 0
                 } else {
                   print $0
                 }
               } else {
                 print $0
               }
-           }' \
+           }
+           END { exit EC }' \
            "${CONFIG}" >"${BACKUP}"; then
         if mv "${BACKUP}" "${CONFIG}"; then
             reboot_required

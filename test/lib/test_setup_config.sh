@@ -11,7 +11,6 @@ source "${_ROOT_DIR}/lib/setup_config.sh"
 export BDRPI_SETUP_CONFIG_FILE="${TMPDIR:-/tmp/}/bdrpi-test-setup-config.$$.txt"
 
 after_each() {
-
     rm -f "${BDRPI_SETUP_CONFIG_FILE}"
     reset_setup_config
 }
