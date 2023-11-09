@@ -41,7 +41,7 @@ installed() {
 
 # perror prints its arguments to stderr.
 perror() {
-    printf "%s\n" "$@" >/dev/stderr
+    printf "%s\n" "$*" >/dev/stderr
     return 0
 }
 
@@ -55,9 +55,9 @@ abort() {
 # is set, just its arguments)
 report() {
     if [[ -n "${STAGE_NAME:-}" ]]; then
-        printf "  %s: %s\n" "${STAGE_NAME}" "$@"
+        printf "  %s: %s\n" "${STAGE_NAME}" "$*"
     else
-        printf "%s\n" "$@"
+        printf "%s\n" "$*"
     fi
 }
 
@@ -90,7 +90,7 @@ prompt() {
 prompt_yesno() {
     local ANSWER
 
-    read -er -p "$* (y/N): " ANSWER
+    read -er -p "$* [y/N]: " ANSWER
     case "$(echo "${ANSWER}" | tr '[:lower:]' '[:upper:]')" in
         Y|YES)
             echo "Y"
@@ -554,6 +554,15 @@ select_image() {
 
 # query use about configuring wifi
 set_wifi_config() {
+    local WIFI_COUNTRY
+    WIFI_COUNTRY="$(prompt_default US "Specify wifi country code")"
+
+    if [[ "${WIFI_COUNTRY}" =~ ^[A-Z][A-Z]$ ]]; then
+        set_setup_config WIFI_COUNTRY "${WIFI_COUNTRY}"
+    else
+        abort "Wifi country must be a two-digit country identifier (e.g. US or GB)"
+    fi
+
     local NUM=0
     local ADD_WIFI
     while true; do

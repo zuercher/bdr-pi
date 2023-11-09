@@ -106,7 +106,7 @@ test_wireless_disable_rfkill_missing_binary() {
 }
 
 test_wireless_device_setup_sets_country() {
-    mock_success report
+    mock_success_and_return get_setup_config ""
     mock_success_and_return wireless_first_interface "iface1"
     mock_success wireless_wpa_check
     mock_success_and_return wireless_wpa_get_country "GB"
@@ -123,7 +123,7 @@ test_wireless_device_setup_sets_country() {
 }
 
 test_wireless_device_setup_with_preset_country() {
-    mock_success report
+    mock_success_and_return get_setup_config ""
     mock_success_and_return wireless_first_interface "iface1"
     mock_success wireless_wpa_check
     mock_success_and_return wireless_wpa_get_country "US"
@@ -131,6 +131,24 @@ test_wireless_device_setup_with_preset_country() {
     mock_success wireless_disable_rfkill
 
     assert_succeeds wireless_device_setup
+}
+
+test_wireless_device_setup_with_setup_config_country() {
+    mock_success_and_return get_setup_config "XX"
+    mock_success_and_return wireless_first_interface "iface1"
+    mock_success wireless_wpa_check
+    mock_success_and_return wireless_wpa_get_country "US"
+    mock_success wireless_wpa_set_country
+    mock_success_and_return wireless_reg_get_country "US"
+    mock_success wireless_reg_set_country
+    mock_success wireless_disable_rfkill
+
+    assert_exit_code 10 wireless_device_setup
+
+    expect_mock_called_with_args get_setup_config "WIFI_COUNTRY"
+    expect_mock_called_with_args wireless_wpa_get_country "iface1"
+    expect_mock_called_with_args wireless_wpa_set_country "iface1" "XX"
+    expect_mock_called_with_args wireless_reg_set_country "XX"
 }
 
 test_wireless_add_network() {

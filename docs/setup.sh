@@ -23,7 +23,7 @@ installed() {
 
 # perror prints its arguments to stderr.
 perror() {
-    printf "%s\n" "$@" >/dev/stderr
+    printf "%s\n" "$*" >/dev/stderr
     return 0
 }
 
@@ -37,9 +37,9 @@ abort() {
 # is set, just its arguments)
 report() {
     if [[ -n "${STAGE_NAME:-}" ]]; then
-        printf "  %s: %s\n" "${STAGE_NAME}" "$@"
+        printf "  %s: %s\n" "${STAGE_NAME}" "$*"
     else
-        printf "%s\n" "$@"
+        printf "%s\n" "$*"
     fi
 }
 
@@ -72,7 +72,7 @@ prompt() {
 prompt_yesno() {
     local ANSWER
 
-    read -er -p "$* (y/N): " ANSWER
+    read -er -p "$* [y/N]: " ANSWER
     case "$(echo "${ANSWER}" | tr '[:lower:]' '[:upper:]')" in
         Y|YES)
             echo "Y"
@@ -117,11 +117,11 @@ network_can_reach() {
 # interfaces available on the system.
 wireless_list_interfaces() {
     # Members of /sys/class/net are links, so find is troublesome.
-    for dir in /sys/class/net/*/wireless; do
+    for dir in "${BDRPI_SYS_CLASS_NET:-/sys/class/net}"/*/wireless; do
         if [ -d "$dir" ]; then
             basename "$(dirname "$dir")"
         fi
-    done
+    done | sort
 }
 
 # wireless_first_interface returns the first entry from
@@ -133,7 +133,7 @@ wireless_first_interface() {
 # wireless_reg_get_country reports the regulatory country that the
 # wireless chipset reports.
 wireless_reg_get_country() {
-    iw reg get | sed -n -e "s/country \([A-Z]\+\):.*/\1/p"
+    iw reg get | sed -n -E -e "s/country ([A-Z]+):.*/\1/p"
 }
 
 # wireless_reg_set_country <country-code> sets the regulatory country
@@ -175,7 +175,7 @@ wireless_wpa_set_country() {
 wireless_disable_rfkill() {
     if installed rfkill; then
         rfkill unblock wifi
-        for filename in /var/lib/systemd/rfkill/*:wlan; do
+        for filename in "${BDRPI_VAR_LIB_SYSTEMD_RFKILL:-/var/lib/systemd/rfkill}"/*:wlan; do
             # This may be run from setup.sh at which point we're not root, so
             # use sudo to make sure the write succeeds.
             echo 0 | sudo tee "${filename}" >/dev/null
@@ -185,9 +185,15 @@ wireless_disable_rfkill() {
 
 # wireless_device_setup attempts to setup wireless networking. Error
 # code 10 indicates a reboot is required. Defaults to US regulatory
-# networking unless BDRPI_WIFI_COUNTRY is set.
+# networking unless BDRPI_WIFI_COUNTRY is set or if a value is set
+# in the setup config file.
 wireless_device_setup() {
     local COUNTRY="${BDRPI_WIFI_COUNTRY:-US}"
+
+    local SETUP_CONFIG_COUNTRY="$(get_setup_config WIFI_COUNTRY)"
+    if [[ -n "${SETUP_CONFIG_COUNTRY}" ]]; then
+        COUNTRY="${SETUP_CONFIG_COUNTRY}"
+    fi
 
     local IFACE
     IFACE="$(wireless_first_interface)"
@@ -202,7 +208,7 @@ wireless_device_setup() {
         report "wpa_cli country is already ${COUNTRY}, skipping"
     fi
 
-    RC=0
+    local RC=0
     if [[ "$(wireless_reg_get_country)" != "${COUNTRY}" ]]; then
         report "setting wireless device regulatory country to ${COUNTRY}"
         wireless_reg_set_country "${COUNTRY}"
@@ -220,6 +226,10 @@ wireless_device_setup() {
 # wireless_add_network $1=SSID $2=PSK $3=prioritypriority adds a
 # single SSID to the network configuration.
 wireless_add_network() {
+    local SSID="${1}"
+    local PSK="${2}"
+    local PRIORITY="${3:-}"
+
     local IFACE
     IFACE="$(wireless_first_interface)"
     [[ -z "${IFACE}" ]] && abort "no wireless interface found"
@@ -298,7 +308,7 @@ wireless_prompt_add_network() {
 # wireless_network_setup_preconfigured iterates over pre-configured
 # networks in the image setup config and configures them. When
 # completed, it removes the networks from the image config.
-wireless_newtork_setup_preconfigured() {
+wireless_network_setup_preconfigured() {
     local NUM_CONFIGS="$(get_setup_config_array_size WIFI_SSID)"
     if [[ -z "${NUM_CONFIGS}" ]] || [[ "${NUM_CONFIGS}" -eq 0 ]]; then
         return 0
@@ -310,7 +320,8 @@ wireless_newtork_setup_preconfigured() {
         local PASS="$(get_setup_config_array WIFI_PASS "${IDX}")"
         local PRIO="$(get_setup_config_array WIFI_PRIO "${IDX}")"
 
-        wireless_add_network "${SSID}" "${PASS}" "${PRIO}"
+        wireless_add_network "${SSID}" "${PASS}" "${PRIO}" || abort "failed to setup ${SSID}"
+        IDX=$((IDX+1))
     done
 
     clear_setup_config_array WIFI_SSID
@@ -330,10 +341,10 @@ wireless_network_setup() {
 
     wireless_device_setup
     local RC=$?
-    if [[ "${RC}" == 10 ]]; then
+    if [[ "${RC}" -eq 10 ]]; then
         report "wireless device regulatory config changed; please reboot and re-run script"
         exit 0
-    elif [[ "${RC}" != 0 ]]; then
+    elif [[ "${RC}" -ne 0 ]]; then
         abort "wireless device regulatory config failed, good luck!"
     fi
 

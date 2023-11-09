@@ -230,6 +230,15 @@ select_image() {
 
 # query use about configuring wifi
 set_wifi_config() {
+    local WIFI_COUNTRY
+    WIFI_COUNTRY="$(prompt_default US "Specify wifi country code")"
+
+    if [[ "${WIFI_COUNTRY}" =~ ^[A-Z][A-Z]$ ]]; then
+        set_setup_config WIFI_COUNTRY "${WIFI_COUNTRY}"
+    else
+        abort "Wifi country must be a two-digit country identifier (e.g. US or GB)"
+    fi
+
     local NUM=0
     local ADD_WIFI
     while true; do

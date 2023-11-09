@@ -92,9 +92,15 @@ wireless_disable_rfkill() {
 
 # wireless_device_setup attempts to setup wireless networking. Error
 # code 10 indicates a reboot is required. Defaults to US regulatory
-# networking unless BDRPI_WIFI_COUNTRY is set.
+# networking unless BDRPI_WIFI_COUNTRY is set or if a value is set
+# in the setup config file.
 wireless_device_setup() {
     local COUNTRY="${BDRPI_WIFI_COUNTRY:-US}"
+
+    local SETUP_CONFIG_COUNTRY="$(get_setup_config WIFI_COUNTRY)"
+    if [[ -n "${SETUP_CONFIG_COUNTRY}" ]]; then
+        COUNTRY="${SETUP_CONFIG_COUNTRY}"
+    fi
 
     local IFACE
     IFACE="$(wireless_first_interface)"
