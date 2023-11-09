@@ -4,7 +4,7 @@ run_stage() {
     report "enabling auto-start of racecapture"
 
     local FILE="bdr_racecapture.sh"
-    local SCRIPT_TMPL="${BDR_DIR}/resources/${FILE}"
+    local SCRIPT_TMPL="${BDR_REPO_DIR}/resources/${FILE}"
     local SCRIPT_TARGET="${SETUP_HOME}/${FILE}"
 
     local ESCAPED_HOME="${SETUP_HOME//\//\\\/}"
@@ -18,7 +18,7 @@ run_stage() {
     local START_FLAG="BEGIN_RCAP_START"
     local END_FLAG="END_RCAP_START"
     if grep -q "# ${START_FLAG}:" "${BASHRC}"; then
-        sed --in-place -e "/# ${START_FLAG}:/,/# ${END_FLAG}/d" "${BASHRC}" || \
+        sed_inplace -e "/# ${START_FLAG}:/,/# ${END_FLAG}/d" "${BASHRC}" || \
             abort "failed to clear old start handler in ${BASHRC}"
     fi
 

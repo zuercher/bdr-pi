@@ -8,7 +8,12 @@ _BOOT_CONFIG_SH_INCLUDED=1
 _BOOT_CONFIG_SH="${BASH_SOURCE[0]}"
 _BOOT_CONFIG_LIB_DIR="$(cd "$(dirname "${_BOOT_CONFIG_SH}")" && pwd)"
 source "${_BOOT_CONFIG_LIB_DIR}/io.sh"
+source "${_BOOT_CONFIG_LIB_DIR}/reboot.sh"
 #{{end_exclude}}#
+
+_config_txt() {
+    echo "${BDRPI_BOOT_CONFIG_TXT:-/boot/config.txt}"
+}
 
 # boot_config_contains_regex $1=section $2=regex returns success if
 # /boot/config.txt contains a line matching regex within section
@@ -25,7 +30,7 @@ boot_config_contains_regex() {
                if (substr($0, 0, 1) == "[") { C = $0 }
                else if (C == S) { print $0 }
              }' \
-             /boot/config.txt | \
+             "$(_config_txt)" | \
         grep -E "${REGEX}"
     )"
 
@@ -55,15 +60,18 @@ boot_config_printf() {
     local SECTION="$1"
     shift
 
+    local CONFIG_TXT="$(_config_txt)"
+    touch "${CONFIG_TXT}"
+
     local LAST_SECTION
-    LAST_SECTION="$(grep -E '^\[' /boot/config.txt | tail -n 1)"
+    LAST_SECTION="$(grep -E '^\[' "${CONFIG_TXT}" | tail -n 1)"
     if [[ "${LAST_SECTION}" != "[${SECTION}]" ]]; then
-        printf "\n[%s]\n" "${SECTION}" >>/boot/config.txt || \
-            abort "failed to add section ${SECTION} to /boot/config.txt"
+        printf "\n[%s]\n" "${SECTION}" >>"$(_config_txt)" || \
+            abort "failed to add section ${SECTION} to ${CONFIG_TXT}"
     fi
 
     # shellcheck disable=SC2059
-    printf "$@" >>/boot/config.txt || abort "failed to append ${SECTION} to /boot/config.txt"
+    printf "$@" >>"${CONFIG_TXT}" || abort "failed to append ${SECTION} to ${CONFIG_TXT}"
 
     reboot_required
 }
@@ -77,10 +85,15 @@ boot_config_replace() {
     local KEY="$2"
     local VALUE="$3"
 
+    local CONFIG BACKUP
+    CONFIG="$(_config_txt)"
+    BACKUP="$(_config_txt)~"
+
     if awk -v S="[${SECTION}]" \
            -v C='[all]' \
            -v K="${KEY}" \
            -v V="${VALUE}" \
+           -v EC="1" \
            '{
               if (substr($0, 0, 1) == "[") {
                 C = $0
@@ -88,15 +101,17 @@ boot_config_replace() {
               } else if (C == S) {
                 if (match($0, "^#?" K "=")) {
                   print K "=" V
+                  EC = 0
                 } else {
                   print $0
                 }
               } else {
                 print $0
               }
-           }' \
-           /boot/config.txt >/boot/config.txt~; then
-        if mv /boot/config.txt~ /boot/config.txt; then
+           }
+           END { exit EC }' \
+           "${CONFIG}" >"${BACKUP}"; then
+        if mv "${BACKUP}" "${CONFIG}"; then
             reboot_required
             return 0
         fi

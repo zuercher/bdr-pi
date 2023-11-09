@@ -20,6 +20,9 @@ run_stage() {
         abort "wireless device regulatory config failed, good luck!"
     fi
 
+    # setup any images from the boot config (should be a no-op)
+    wireless_newtork_setup_preconfigured
+
     local DEFAULT_PRIO_SSIDS=()
     local HIGH_PRIO_SSIDS=()
     local ID
@@ -56,25 +59,31 @@ run_stage() {
         report "    <none>"
     fi
 
-    echo "use default priority SSIDs as backup networks (e.g. PAWDF wifi)"
+    local PERFORM_SETUP="$(get_setup_config WIFI_PERFORM_SSID_SETUP)"
+    if [[ -n "${PERFORM_SETUP}" ]] && [[ "${PERFORM_SETUP}" != "true" ]]; then
+        report "skipping wireless network prompts, as directed by image setup config"
+        return 0
+    fi
+
+    echo "Note: use default priority SSIDs as backup networks (e.g. PAWDF wifi)"
     while true; do
         local RESP
-        RESP="$(prompt "add a default priority SSID? [y/N]" | tr '[:lower:]' '[:upper:]')"
-        if [[ "${RESP}" != "Y" ]] && [[ "${RESP}" != "YES" ]]; then
+        RESP="$(prompt_yesno "add a default priority SSID?")"
+        if [[ "${RESP}" != "Y" ]]; then
             break
         fi
 
-        wireless_add_network 0
+        wireless_prompt_add_network 0
     done
 
     echo "use high priority SSIDs as primary networks (e.g. the car's wifi)"
     while true; do
         local RESP
-        RESP="$(prompt "add a high priority SSID? [y/N]" | tr '[:lower:]' '[:upper:]')"
-        if [[ "${RESP}" != "Y" ]] && [[ "${RESP}" != "YES" ]]; then
+        RESP="$(prompt_yesno "add a high priority SSID?")"
+        if [[ "${RESP}" != "Y" ]]; then
             break
         fi
 
-        wireless_add_network 10
+        wireless_prompt_add_network 10
     done
 }

@@ -15,7 +15,7 @@ REBOOT_REQUIRED=false
 # reboot_configured indicates if the user's bashrc has a reboot scheduled
 reboot_configured() {
     local BASHRC="${SETUP_HOME}/.bashrc"
-    grep -q "# BEGIN_ON_REBOOT VIA" "${BASHRC}"
+    grep -q "# BEGIN_ON_REBOOT" "${BASHRC}"
 }
 
 # reboot_clear disables a scheduled reboot in the user's bashrc
@@ -24,9 +24,10 @@ reboot_clear() {
 
     if [[ ! -f "${BASHRC}" ]]; then
         abort "cannot clear reboot task without an existing ${BASHRC}"
+        return
     fi
 
-    sed --in-place -e "/# BEGIN_ON_REBOOT VIA/,/# END_ON_REBOOT/d" "${BASHRC}" || \
+    sed_inplace -e "/# BEGIN_ON_REBOOT/,/# END_ON_REBOOT/d" "${BASHRC}" || \
         abort "failed to clear reboot handler in ${BASHRC}"
 }
 
@@ -35,6 +36,7 @@ _on_reboot() {
 
     if [[ ! -f "${BASHRC}" ]]; then
         abort "cannot schedule reboot task without an existing ${BASHRC}"
+        return
     fi
 
     local TTYPE="terminal"
@@ -78,7 +80,7 @@ EOF
 # reboot_required triggers a reboot and arranges for setup.sh to be
 # run again on login.
 reboot_required() {
-    _on_reboot "\"${BDR_DIR}/setup.sh\""
+    _on_reboot "\"${BDR_REPO_DIR}/setup.sh\""
 }
 
 # reboot_is_required indicates if a reboot is required

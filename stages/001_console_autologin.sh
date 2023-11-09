@@ -23,6 +23,9 @@ run_stage() {
 
     report "configure autologin for ${SETUP_USER}"
     ln -fs /lib/systemd/system/getty@.service /etc/systemd/system/getty.target.wants/getty@tty1.service
+
+    # This is lifted from raspi-config. The repeated ExecStart seems
+    # wrong, but it works.
     cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
 [Service]
 ExecStart=

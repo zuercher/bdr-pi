@@ -1,0 +1,547 @@
+#!/bin/bash
+# shellcheck disable=SC2317
+
+#/# Usage: imager.sh <command> <options>
+#/#
+#/# Commands:
+#/#     list-disks [--all]
+#/#         List available disks for imaging. Defaults to physical,
+#/#         external disks. Use the --all flag to see all disks.
+#/#
+#/#     list-images
+#/#         List available images. Defaults to 64-bit OS images.
+#/#
+#/#     image DISK
+#/#         Image the storage device and pre-configure bdr-pi
+#/#         installation scripting.
+#/#
+#/#     clear-cache
+#/#         Clear the local cache of images and image detatils.
+#/#
+
+set -u
+set -o pipefail
+
+#{{include fs.sh}}#
+#{{include io.sh}}#
+#{{include setup_config.sh}}#
+
+ROOT_DIR="$(cd "$(dirname "$0}")" && pwd)"
+
+DRYRUN="false"
+
+OSLIST_URL="https://downloads.raspberrypi.org/os_list_imagingutility_v4.json"
+
+BDRPI_TMP="${TMPDIR:-/tmp}/bdr-pi-imager.$$"
+CACHE_DIR="${HOME}/.bdr-pi-cache"
+
+# print usage and quit
+usage() {
+    if [[ -n "$1" ]]; then
+        perror "$@"
+        perror ""
+    fi
+    grep "^#/#" "$0" | cut -c"5-" >&2
+    exit 1
+}
+
+# make a file in our temp directory
+tmpfile() {
+    local name="${BDRPI_TMP}/${1:-tmp}"
+    echo "${name}"
+}
+trap 'rm -rf "${BDRPI_TMP}"' EXIT
+
+# list disks for imaging
+list_disks() {
+    declare -a TYPES=("external" "physical")
+
+    while [[ -n "${1:-}" ]]; do
+        case "$1" in
+            -a|-all|--all)
+                TYPES=()
+                shift
+                ;;
+            *)
+                usage "ERROR: list-disks: unknown flag $1"
+                ;;
+        esac
+    done
+
+    local PLIST TOTAL NUM_DISKS
+    PLIST="$(tmpfile disk-plist)"
+    TOTAL=0
+
+    # shellcheck disable=SC2068
+    diskutil list -plist ${TYPES[@]:-} >"${PLIST}" || abort "error listing disks"
+
+    NUM_DISKS="$(plutil -extract AllDisksAndPartitions raw "${PLIST}")"
+    if [[ "${NUM_DISKS}" -gt 0 ]]; then
+        local INDEX
+        for INDEX in $(jot "${NUM_DISKS}" 0); do
+            local DISK VOLUME
+            DISK="$( \
+                  plutil \
+                         -extract "AllDisksAndPartitions.${INDEX}.DeviceIdentifier" \
+                         raw "${PLIST}" )"
+            if [[ -z "${DISK}" ]]; then
+                continue
+            fi
+
+            VOLUME="$( \
+                  plutil \
+                         -extract "AllDisksAndPartitions.${INDEX}.Partitions.0.MountPoint" \
+                         raw "${PLIST}" )"
+
+            echo "/dev/${DISK}  ${VOLUME:-?}"
+            TOTAL=$((TOTAL+1))
+        done
+    fi
+
+    if [[ "${TOTAL}" -eq 0 ]]; then
+        echo "No disks found."
+    fi
+
+    return 0
+}
+
+# download a resource $1=URL $2=sha256 (or omit for no checks)
+download_resource() {
+    local IMAGEURL="${1:-}"
+    local HASH="${2:-}"
+
+    if [[ -z "${IMAGEURL}" ]]; then
+        abort "internal error: no image url"
+    fi
+
+    local FILE
+    FILE="$(basename "${IMAGEURL}")"
+    local CACHE_FILE="${CACHE_DIR}/${FILE}"
+
+    if [[ -f "${CACHE_FILE}" ]]; then
+        perror "Using cached file ${CACHE_FILE}"
+    else
+        perror "Downloading ${IMAGEURL}..."
+
+        curl --progress-bar --output "${CACHE_FILE}" "${IMAGEURL}" || \
+            abort "failed to download ${IMAGEURL}"
+    fi
+
+    if [[ -n "${HASH}" ]]; then
+        perror "Validating file..."
+
+        local FILE FILEHASH
+
+        FILE="$(prep_image "${CACHE_FILE}")"
+        FILEHASH="$(shasum -a 256 "${FILE}" | awk '{print $1}')"
+
+        [[ "${FILEHASH}" == "${HASH}" ]] || abort "hash mismatch got ${FILEHASH}, expected ${HASH}"
+
+        perror "ok"
+    fi
+
+    echo "${CACHE_FILE}"
+}
+
+# get a list of images via OSLIST_URL
+get_images() {
+    local OSLIST FILTERED_OSLIST
+    OSLIST="$(download_resource "${OSLIST_URL}")"
+    [[ -z "${OSLIST}" ]] && exit 1
+
+    FILTERED_OSLIST="$(tmpfile oslist-filtered-json)"
+
+    # Get the top-level images.
+    {
+        jq '.os_list' "${OSLIST}" | \
+            jq '.[] | select(.devices // [] | contains(["pi4-64bit"])) | {"name":.name, "url":.url, "sha":.extract_sha256}' | \
+            jq 'select(.url != null)' >"${FILTERED_OSLIST}"
+    } || abort "failed to perform first filter pass on os list"
+
+    # Get nested images.
+    {
+        jq '.os_list' "${OSLIST}" | \
+            jq '.[] | (.subitems // [])[] | select(.devices // [] | contains(["pi4-64bit"])) | {"name":.name, "url":.url, "sha":.extract_sha256}' | \
+            jq 'select(.url != null)' >>"${FILTERED_OSLIST}"
+    } || abort "failed to perform second filter pass on os list"
+
+    echo "${FILTERED_OSLIST}"
+}
+
+# print a list of images
+list_images() {
+    local IMAGELIST
+    IMAGELIST="$(get_images "$@")"
+    [[ -z "${IMAGELIST}" ]] && return 1
+
+    jq -r '.name + "\n\t" + .url + "\n"' "${IMAGELIST}"
+
+    return 0
+}
+
+# if the file is compressed, decompress it and return a path to the decompressed file,
+# otherwise just returns the file
+prep_image() {
+    local IMAGE="${1}"
+
+    if [[ "${IMAGE}" = *.xz ]]; then
+        local BASE RESULT
+        BASE="$(basename "${IMAGE}")"
+        RESULT="$(tmpfile "${BASE/%\.xz/}")"
+        if [[ ! -f "${RESULT}" ]]; then
+            xz --decompress --stdout --thread=0 "${IMAGE}" > "${RESULT}"
+        fi
+        echo "${RESULT}"
+    else
+        echo "${IMAGE}"
+    fi
+}
+
+# prompt the user to select an image to use
+select_image() {
+    local IMAGELIST
+    IMAGELIST="$(get_images "$@")"
+    [[ -z "${IMAGELIST}" ]] && exit 1
+
+    jq -r '.name' "${IMAGELIST}" | nl -s $'.\t' >/dev/stderr || abort "couldn't print the list"
+
+    local DEFAULT PICK IMAGEURL IMAGEHASH IMAGE
+    DEFAULT="$(
+        jq -r '.name' "${IMAGELIST}" | \
+        nl -s: -w1 | \
+        grep Legacy | grep 64-bit | grep Lite |\
+        cut -d: -f1)"
+
+    if [[ -n "${DEFAULT}" ]]; then
+        PICK="$(prompt_default "${DEFAULT}" "Select a base image")"
+    else
+        PICK="$(prompt "Select a base image")"
+    fi
+    [[ -n "${PICK}" ]] || abort "no image selected"
+
+    IMAGEURL="$(
+        jq -r '.url' "${IMAGELIST}" | \
+        nl -s: -w1 | \
+        grep -E "^${PICK}:" |\
+        cut -d: -f2-)"
+    [[ -n "${IMAGEURL}" ]] || abort "no valid image selected"
+
+    IMAGEHASH="$(
+        jq -r '.sha' "${IMAGELIST}" | \
+        nl -s: -w1 | \
+        grep -E "^${PICK}:" |\
+        cut -d: -f2-)"
+
+    IMAGE="$(download_resource "${IMAGEURL}" "${IMAGEHASH}")"
+    [[ -z "${IMAGE}" ]] && exit 1
+
+    echo "${IMAGE}"
+}
+
+# query use about configuring wifi
+set_wifi_config() {
+    local WIFI_COUNTRY
+    WIFI_COUNTRY="$(prompt_default US "Specify wifi country code")"
+
+    if [[ "${WIFI_COUNTRY}" =~ ^[A-Z][A-Z]$ ]]; then
+        set_setup_config WIFI_COUNTRY "${WIFI_COUNTRY}"
+    else
+        abort "Wifi country must be a two-digit country identifier (e.g. US or GB)"
+    fi
+
+    local NUM=0
+    local ADD_WIFI
+    while true; do
+        perror
+
+        if [[ "${NUM}" -eq 0 ]]; then
+            perror "Preconfiguring a wifi network allows bdrpi configuration to proceed"
+            perror "on first boot without user intervention."
+
+            ADD_WIFI="$(prompt_yesno "Pre-configure wifi?")"
+        else
+            if [[ "${NUM}" -eq 1 ]]; then
+                perror "Preconfiguring additional wifi networks (e.g. the pepwave) allows bdrpi"
+                perror "configuration to proceed with zero intervention."
+            fi
+
+            ADD_WIFI="$(prompt_yesno "Pre-configure another wifi network?")"
+        fi
+
+        if [[ "${ADD_WIFI}" != "Y" ]]; then
+            break
+        fi
+        NUM=$((NUM+1))
+
+        SSID="$(prompt "Enter an SSID")"
+        PASS="$(prompt_pw "Enter a password for ${SSID}")"
+
+        if [[ -z "${SSID}" ]] || [[ -z "${PASS}" ]]; then
+            abort "network config requires both an SSID and password"
+        fi
+        HIGH_PRIO="$(prompt_yesno "Make ${SSID} preferred?")"
+
+        set_setup_config_array WIFI_SSID append "${SSID}"
+        set_setup_config_array WIFI_PASS append "${PASS}"
+
+        if [[ "${HIGH_PRIO}" == "Y" ]]; then
+            set_setup_config_array WIFI_PRIO append 10
+        else
+            set_setup_config_array WIFI_PRIO append 0
+        fi
+    done
+
+    perror
+
+    ADD_WIFI="$(prompt_yesno "Skip querying for additional networks during post-boot configuration?")"
+    if [[ "${ADD_WIFI}" == "Y" ]]; then
+        set_setup_config WIFI_PERFORM_SSID_SETUP "false"
+    else
+        set_setup_config WIFI_PERFORM_SSID_SETUP "true"
+    fi
+}
+
+set_lifepo4wered_config() {
+    local CONFIG_LIFEPO
+
+    perror "Configuring lifepo4wered-pi requires the hardware be present."
+
+    CONFIG_LIFEPO="$(prompt_yesno "Configure lifepo4wered-pi UPS software during post-boot configuration?")"
+    if [[ "${CONFIG_LIFEPO}" == "Y" ]]; then
+        set_setup_config LIFEPO_PERFORM_SETUP "true"
+    else
+        set_setup_config LIFEPO_PERFORM_SETUP "false"
+    fi
+}
+
+set_user_config() {
+    local USER PASS
+
+    perror "User configuration. Password is temporarily stored in the image."
+
+    USER="$(prompt_default "pi" "Select a username")"
+    [[ -n "${USER}" ]] || abort "must select a username"
+
+    PASS="$(prompt_pw "Password")"
+    [[ -n "${PASS}" ]] || abort "must select a pasword"
+
+    set_setup_config FIRST_RUN_USER "${USER}"
+    set_setup_config FIRST_RUN_PASS "${PASS}"
+}
+
+# prepare and write an image to the given $1=disk
+image() {
+    local DISK="${1:-}"
+    if [[ -z "${DISK}" ]]; then
+        usage "ERROR: image: missing disk name argument"
+    fi
+
+    local SAFE=""
+    local DRYRUN_NO_DISK="false"
+    if "${DRYRUN}"; then
+        perror "Dry-run mode enabled."
+        SAFE="echo"
+
+        if ! [[ -e "${DISK}" ]]; then
+            DRYRUN_NO_DISK="true"
+        fi
+    fi
+
+    local IMAGE
+    IMAGE="$(select_image)"
+    [[ -z "${IMAGE}" ]] && exit 1
+
+    perror
+    perror "Inspecting disk..."
+    local SIZE BLOCKSIZE
+    if "${DRYRUN_NO_DISK}"; then
+        # TODO: bash math fails on this disk size
+        perror "No Disk: setting arbitrary dry-run volume size of 512000000000"
+        SIZE="512000000000"
+        perror "No Disk: Setting aribitrary dry-run block size of 512"
+        BLOCKSIZE="512"
+    else
+        local PLIST
+        PLIST="$(tmpfile disk-plist)"
+        diskutil info -plist "${DISK}" >"${PLIST}" || abort "error getting disk info"
+
+        SIZE="$(plutil -extract "Size" raw "${PLIST}")"
+        if [[ -z "${SIZE}" ]]; then
+            abort "failed to determine disk size"
+        fi
+        if [[ "${SIZE}" -lt 32000000000 ]]; then
+            abort "volume is less than 32 GiB... giving up"
+        fi
+        local SIZE_GB=$((SIZE/1000000000))
+
+        perror "Volume size is approximately ${SIZE_GB} GiB (${SIZE})."
+
+        BLOCKSIZE="$(plutil -extract "DeviceBlockSize" raw "${PLIST}")"
+        if [[ -z "${BLOCKSIZE}" ]] || [[ "${BLOCKSIZE}" -eq 0 ]]; then
+            abort "cannot determine block size"
+        fi
+        perror "Block size is ${BLOCKSIZE}."
+    fi
+
+    # rewrite /dev/diskX to /dev/rdiskX
+    local RDISK
+    RDISK="${DISK//\/dev\/disk//dev/rdisk}"
+
+    # format the disk
+    perror
+    perror "Formatting disk..."
+    ${SAFE} sudo diskutil eraseDisk FAT32 "BDR_PI" MBRFormat "${DISK}" || \
+        abort "format operation failed"
+
+    # unmount the disk
+    perror
+    perror "Preparing disk..."
+    ${SAFE} diskutil unmountDisk "${DISK}" || abort "failed to unmount disk"
+
+    # zero first MB
+    local NBLKS=$((1024*1024 / BLOCKSIZE))
+    ${SAFE} sudo dd bs="${BLOCKSIZE}" count="${NBLKS}" \
+            if=/dev/zero \
+            of="${RDISK}" \
+            status=none || abort "failed to zero first MB"
+
+    # zero last MB
+    local SIZE_BLKS=$((SIZE / 512))
+    local SBLKS=$((SIZE_BLKS - NBLKS))
+    ${SAFE} sudo dd bs="${BLOCKSIZE}" oseek="${SBLKS}" count="${NBLKS}" \
+            if=/dev/zero \
+            of="${RDISK}" \
+            status=none || abort "failed to zero last MB"
+
+    perror
+    perror "Writing image... (this could take a while)"
+
+    # Write the image. rpi-imager skips the first 4kb and then writes
+    # it last. Not sure why.
+    ${SAFE} sudo dd bs=1m if="$(prep_image "${IMAGE}")" of="${RDISK}" status=progress
+
+    perror "...done"
+
+    perror
+    perror "Mounting disk for post-image tweaks..."
+    # remount the disk
+    ${SAFE} diskutil mountDisk "${DISK}" || abort "failed to re-mount disk"
+
+    local VOLUME
+    if "${DRYRUN}"; then
+        # Pretend /tmp is our volume.
+        VOLUME="/tmp/example-boot-volume"
+        mkdir -p "${VOLUME}" || abort "error creating ${VOLUME} for dry-run"
+    else
+        # Figure out the volume name of our disk (which is set by the image), and where it lives
+        VOLUME="$(list_disks | grep -F "${DISK}" | awk '{print $2}')"
+
+        [[ -n "${VOLUME}" ]] || abort "could not find volume for ${DISK}"
+    fi
+
+    export BDRPI_SETUP_CONFIG_FILE="${VOLUME}/bdrpi-config.txt"
+    perror
+    perror "Writing setup config to ${BDRPI_SETUP_CONFIG_FILE}"
+
+    set_user_config
+    perror
+    set_wifi_config
+    perror
+    set_lifepo4wered_config
+
+    cp "${ROOT_DIR}/resources/firstrun.sh" "${VOLUME}/bdrpi-firstrun.sh"
+    cp "${ROOT_DIR}/docs/setup.sh" "${VOLUME}/bdrpi-setup.sh"
+
+    if [[ -f "${VOLUME}/cmdline.txt" ]]; then
+        local CMDLINE
+        CMDLINE="$(cat "${VOLUME}/cmdline.txt")"
+        CMDLINE="${CMDLINE} systemd.run=/boot/bdrpi-firstrun.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target"
+        ${SAFE} echo "${CMDLINE}" >"${VOLUME}/cmdline.txt" || abort "unable to write ${VOLUME}/cmdline.txt"
+    fi
+
+    perror
+    perror "Ejecting ${DISK}..."
+
+    ${SAFE} diskutil eject "${DISK}" || \
+        abort "failed to eject ${DISK}, but I think I'm done..."
+
+    perror "Done!"
+
+    return 0
+}
+
+clear_cache() {
+    local SAFE=""
+    if "${DRYRUN}"; then
+        echo "Dry-run mode enabled."
+        SAFE="echo"
+    fi
+
+    ${SAFE} rm -rf "${CACHE_DIR}"
+}
+
+# Require bash
+# shellcheck disable=SC2292
+if [ -z "${BASH_VERSION:-}" ]; then
+    abort "bash is required to interpret this script."
+fi
+
+# Currently we only support macOS for imaging SD cards.
+OS="$(uname)"
+if [[ "$OS" != "Darwin" ]]; then
+    abort "OS is ${OS} -- this isn't going to work out."
+fi
+
+# These should just exist on macOS
+for TOOL in awk curl diskutil jot plutil shasum; do
+    if ! installed "${TOOL}"; then
+        abort "could not find ${TOOL}, is this macOS?"
+    fi
+done
+
+for TOOL in jq xz; do
+    if ! installed "${TOOL}"; then
+        abort "could not find ${TOOL}, please install (homebrew works)"
+    fi
+done
+
+mkdir -p "${BDRPI_TMP}" || abort "failed to create temp dir"
+mkdir -p "${CACHE_DIR}" || abort "failed to create image cache dir"
+
+while [[ -n "${1:-}" ]]; do
+    case "$1" in
+        -n|-dry-run|--dry-run)
+            DRYRUN=true
+            shift
+            ;;
+
+        clear-cache)
+            shift
+            clear_cache "$@"
+            exit $?
+            ;;
+
+        list-disks)
+            shift
+            list_disks "$@"
+            exit $?
+            ;;
+
+        list-images)
+            shift
+            list_images "$@"
+            exit $?
+            ;;
+
+        image)
+            shift
+            image "$@"
+            exit $?
+            ;;
+        *)
+            usage "ERROR: unknown command: $1"
+            ;;
+    esac
+done
+
+usage "ERROR: no command given"

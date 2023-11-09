@@ -12,7 +12,7 @@ source "${_STAGES_LIB_DIR}/reboot.sh"
 #{{end_exclude}}#
 
 _FORCE_STAGES=false
-_STATE_DIR="${BDR_DIR}/.state"
+_STATE_DIR="${BDR_DIR}/state"
 
 # stage_force_all forces all stages to be executed even if the state
 # directory indicates it's already been run.
@@ -27,12 +27,12 @@ _stage_init() {
 
 # stage_list lists all stages, in order.
 _stage_list() {
-    NUM_STAGES="$(find "${BDR_DIR}/stages" -type f -print | wc -l)"
+    NUM_STAGES="$(find "${BDR_REPO_DIR}/stages" -type f -print | wc -l)"
     if [[ "$NUM_STAGES" -eq 0 ]]; then
         abort "no installation stages found"
     fi
 
-    find "${BDR_DIR}/stages" -type f -print | sort
+    find "${BDR_REPO_DIR}/stages" -type f -print | sort
 }
 
 # stage_name $1 extracts the stage's name from its path.
