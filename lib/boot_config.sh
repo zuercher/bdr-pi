@@ -85,8 +85,9 @@ boot_config_replace() {
     local KEY="$2"
     local VALUE="$3"
 
-    local CONFIG="$(_config_txt)"
-    local BACKUP="$(_config_txt)~"
+    local CONFIG BACKUP
+    CONFIG="$(_config_txt)"
+    BACKUP="$(_config_txt)~"
 
     if awk -v S="[${SECTION}]" \
            -v C='[all]' \

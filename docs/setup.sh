@@ -190,7 +190,8 @@ wireless_disable_rfkill() {
 wireless_device_setup() {
     local COUNTRY="${BDRPI_WIFI_COUNTRY:-US}"
 
-    local SETUP_CONFIG_COUNTRY="$(get_setup_config WIFI_COUNTRY)"
+    local SETUP_CONFIG_COUNTRY
+    SETUP_CONFIG_COUNTRY="$(get_setup_config WIFI_COUNTRY)"
     if [[ -n "${SETUP_CONFIG_COUNTRY}" ]]; then
         COUNTRY="${SETUP_CONFIG_COUNTRY}"
     fi
@@ -309,16 +310,18 @@ wireless_prompt_add_network() {
 # networks in the image setup config and configures them. When
 # completed, it removes the networks from the image config.
 wireless_network_setup_preconfigured() {
-    local NUM_CONFIGS="$(get_setup_config_array_size WIFI_SSID)"
+    local NUM_CONFIGS
+    NUM_CONFIGS="$(get_setup_config_array_size WIFI_SSID)"
     if [[ -z "${NUM_CONFIGS}" ]] || [[ "${NUM_CONFIGS}" -eq 0 ]]; then
         return 0
     fi
 
     local IDX=0
     while [[ "${IDX}" -lt "${NUM_CONFIGS}" ]]; do
-        local SSID="$(get_setup_config_array WIFI_SSID "${IDX}")"
-        local PASS="$(get_setup_config_array WIFI_PASS "${IDX}")"
-        local PRIO="$(get_setup_config_array WIFI_PRIO "${IDX}")"
+        local SSID PASS PRIO
+        SSID="$(get_setup_config_array WIFI_SSID "${IDX}")"
+        PASS="$(get_setup_config_array WIFI_PASS "${IDX}")"
+        PRIO="$(get_setup_config_array WIFI_PRIO "${IDX}")"
 
         wireless_add_network "${SSID}" "${PASS}" "${PRIO}" || abort "failed to setup ${SSID}"
         IDX=$((IDX+1))
@@ -350,7 +353,8 @@ wireless_network_setup() {
 
     wireless_network_setup_preconfigured
 
-    local PERFORM_SETUP="$(get_setup_config WIFI_PERFORM_SSID_SETUP)"
+    local PERFORM_SETUP
+    PERFORM_SETUP="$(get_setup_config WIFI_PERFORM_SSID_SETUP)"
     if [[ -z "${PERFORM_SETUP}" ]] || [[ "${PERFORM_SETUP}" == "true" ]]; then
         report "adding low-priority wireless network for set-up..."
         wireless_prompt_add_network 0 skippable

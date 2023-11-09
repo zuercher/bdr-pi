@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2317
 
 #/# Usage: imager.sh <command> <options>
 #/#
@@ -391,16 +392,19 @@ list_disks() {
         esac
     done
 
-    local PLIST="$(tmpfile disk-plist)"
-    local TOTAL=0
+    local PLIST TOTAL NUM_DISKS
+    PLIST="$(tmpfile disk-plist)"
+    TOTAL=0
 
+    # shellcheck disable=SC2068
     diskutil list -plist ${TYPES[@]:-} >"${PLIST}" || abort "error listing disks"
 
-    local NUM_DISKS="$(plutil -extract AllDisksAndPartitions raw "${PLIST}")"
+    NUM_DISKS="$(plutil -extract AllDisksAndPartitions raw "${PLIST}")"
     if [[ "${NUM_DISKS}" -gt 0 ]]; then
         local INDEX
         for INDEX in $(jot "${NUM_DISKS}" 0); do
-            local DISK="$( \
+            local DISK VOLUME
+            DISK="$( \
                   plutil \
                          -extract "AllDisksAndPartitions.${INDEX}.DeviceIdentifier" \
                          raw "${PLIST}" )"
@@ -408,7 +412,7 @@ list_disks() {
                 continue
             fi
 
-            local VOLUME="$( \
+            VOLUME="$( \
                   plutil \
                          -extract "AllDisksAndPartitions.${INDEX}.Partitions.0.MountPoint" \
                          raw "${PLIST}" )"
@@ -434,7 +438,8 @@ download_resource() {
         abort "internal error: no image url"
     fi
 
-    local FILE="$(basename "${IMAGEURL}")"
+    local FILE
+    FILE="$(basename "${IMAGEURL}")"
     local CACHE_FILE="${CACHE_DIR}/${FILE}"
 
     if [[ -f "${CACHE_FILE}" ]]; then
@@ -449,8 +454,10 @@ download_resource() {
     if [[ -n "${HASH}" ]]; then
         perror "Validating file..."
 
-        local FILE="$(prep_image "${CACHE_FILE}")"
-        local FILEHASH="$(shasum -a 256 "${FILE}" | awk '{print $1}')"
+        local FILE FILEHASH
+
+        FILE="$(prep_image "${CACHE_FILE}")"
+        FILEHASH="$(shasum -a 256 "${FILE}" | awk '{print $1}')"
 
         [[ "${FILEHASH}" == "${HASH}" ]] || abort "hash mismatch got ${FILEHASH}, expected ${HASH}"
 
@@ -462,11 +469,11 @@ download_resource() {
 
 # get a list of images via OSLIST_URL
 get_images() {
-    local OSLIST
+    local OSLIST FILTERED_OSLIST
     OSLIST="$(download_resource "${OSLIST_URL}")"
-    [[ -z "{OSLIST}" ]] && exit 1
+    [[ -z "${OSLIST}" ]] && exit 1
 
-    local FILTERED_OSLIST="$(tmpfile oslist-filtered-json)"
+    FILTERED_OSLIST="$(tmpfile oslist-filtered-json)"
 
     # Get the top-level images.
     {
@@ -487,7 +494,8 @@ get_images() {
 
 # print a list of images
 list_images() {
-    local IMAGELIST="$(get_images "$@")"
+    local IMAGELIST
+    IMAGELIST="$(get_images "$@")"
     [[ -z "${IMAGELIST}" ]] && return 1
 
     jq -r '.name + "\n\t" + .url + "\n"' "${IMAGELIST}"
@@ -498,11 +506,12 @@ list_images() {
 # if the file is compressed, decompress it and return a path to the decompressed file,
 # otherwise just returns the file
 prep_image() {
-    IMAGE="${1}"
+    local IMAGE="${1}"
 
     if [[ "${IMAGE}" = *.xz ]]; then
-        local BASE="$(basename "${IMAGE}")"
-        local RESULT="$(tmpfile "${BASE/%\.xz/}")"
+        local BASE RESULT
+        BASE="$(basename "${IMAGE}")"
+        RESULT="$(tmpfile "${BASE/%\.xz/}")"
         if [[ ! -f "${RESULT}" ]]; then
             xz --decompress --stdout --thread=0 "${IMAGE}" > "${RESULT}"
         fi
@@ -514,18 +523,19 @@ prep_image() {
 
 # prompt the user to select an image to use
 select_image() {
-    local IMAGELIST="$(get_images "$@")"
+    local IMAGELIST
+    IMAGELIST="$(get_images "$@")"
     [[ -z "${IMAGELIST}" ]] && exit 1
 
     jq -r '.name' "${IMAGELIST}" | nl -s $'.\t' >/dev/stderr || abort "couldn't print the list"
 
-    local DEFAULT="$(
+    local DEFAULT PICK IMAGEURL IMAGEHASH IMAGE
+    DEFAULT="$(
         jq -r '.name' "${IMAGELIST}" | \
         nl -s: -w1 | \
         grep Legacy | grep 64-bit | grep Lite |\
         cut -d: -f1)"
 
-    local PICK
     if [[ -n "${DEFAULT}" ]]; then
         PICK="$(prompt_default "${DEFAULT}" "Select a base image")"
     else
@@ -533,20 +543,20 @@ select_image() {
     fi
     [[ -n "${PICK}" ]] || abort "no image selected"
 
-    local IMAGEURL="$(
+    IMAGEURL="$(
         jq -r '.url' "${IMAGELIST}" | \
         nl -s: -w1 | \
         grep -E "^${PICK}:" |\
         cut -d: -f2-)"
     [[ -n "${IMAGEURL}" ]] || abort "no valid image selected"
 
-    local IMAGEHASH="$(
+    IMAGEHASH="$(
         jq -r '.sha' "${IMAGELIST}" | \
         nl -s: -w1 | \
         grep -E "^${PICK}:" |\
         cut -d: -f2-)"
 
-    local IMAGE="$(download_resource "${IMAGEURL}" "${IMAGEHASH}")"
+    IMAGE="$(download_resource "${IMAGEURL}" "${IMAGEHASH}")"
     [[ -z "${IMAGE}" ]] && exit 1
 
     echo "${IMAGE}"
@@ -590,8 +600,9 @@ set_wifi_config() {
         SSID="$(prompt "Enter an SSID")"
         PASS="$(prompt_pw "Enter a password for ${SSID}")"
 
-        [[ -n "${SSID}" ]] && [[ -n "${PASS}" ]] || abort "network config requires both an SSID and password"
-
+        if [[ -z "${SSID}" ]] || [[ -z "${PASS}" ]]; then
+            abort "network config requires both an SSID and password"
+        fi
         HIGH_PRIO="$(prompt_yesno "Make ${SSID} preferred?")"
 
         set_setup_config_array WIFI_SSID append "${SSID}"
@@ -660,12 +671,13 @@ image() {
         fi
     fi
 
-    local IMAGE="$(select_image)"
+    local IMAGE
+    IMAGE="$(select_image)"
     [[ -z "${IMAGE}" ]] && exit 1
 
     perror
     perror "Inspecting disk..."
-    local BLOCKSIZE
+    local SIZE BLOCKSIZE
     if "${DRYRUN_NO_DISK}"; then
         # TODO: bash math fails on this disk size
         perror "No Disk: setting arbitrary dry-run volume size of 512000000000"
@@ -673,10 +685,11 @@ image() {
         perror "No Disk: Setting aribitrary dry-run block size of 512"
         BLOCKSIZE="512"
     else
-        local PLIST="$(tmpfile disk-plist)"
+        local PLIST
+        PLIST="$(tmpfile disk-plist)"
         diskutil info -plist "${DISK}" >"${PLIST}" || abort "error getting disk info"
 
-        local SIZE="$(plutil -extract "Size" raw "${PLIST}")"
+        SIZE="$(plutil -extract "Size" raw "${PLIST}")"
         if [[ -z "${SIZE}" ]]; then
             abort "failed to determine disk size"
         fi
@@ -695,6 +708,7 @@ image() {
     fi
 
     # rewrite /dev/diskX to /dev/rdiskX
+    local RDISK
     RDISK="${DISK//\/dev\/disk//dev/rdisk}"
 
     # format the disk
@@ -705,7 +719,7 @@ image() {
 
     # unmount the disk
     perror
-    perror"Preparing disk..."
+    perror "Preparing disk..."
     ${SAFE} diskutil unmountDisk "${DISK}" || abort "failed to unmount disk"
 
     # zero first MB
@@ -763,7 +777,8 @@ image() {
     cp "${ROOT_DIR}/docs/setup.sh" "${VOLUME}/bdrpi-setup.sh"
 
     if [[ -f "${VOLUME}/cmdline.txt" ]]; then
-        local CMDLINE="$(cat "${VOLUME}/cmdline.txt")"
+        local CMDLINE
+        CMDLINE="$(cat "${VOLUME}/cmdline.txt")"
         CMDLINE="${CMDLINE} systemd.run=/boot/bdrpi-firstrun.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target"
         ${SAFE} echo "${CMDLINE}" >"${VOLUME}/cmdline.txt" || abort "unable to write ${VOLUME}/cmdline.txt"
     fi
