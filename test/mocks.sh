@@ -28,7 +28,7 @@ _rename_function() {
     unset -f "$1"
 }
 
-_success_mock() {
+_mock_func() {
     local NAME="${1:-}"
     if [[ -z "${NAME}" ]]; then
         echo "invalid mock function call (missing name)"
@@ -38,18 +38,6 @@ _success_mock() {
 
     echo "${NAME};$(_join_by ';' "$@")" >>"${_MOCK_CALLS}"
     return 0
-}
-
-_error_mock() {
-    local NAME="${1:-}"
-    if [[ -z "${NAME}" ]]; then
-        echo "invalid mock function call (missing name)"
-        exit 1
-    fi
-    shift
-
-    echo "${NAME};$(_join_by ';' "$@")" >>"${_MOCK_CALLS}"
-    return 1
 }
 
 # mock_success $1=fn-name
@@ -70,7 +58,7 @@ mock_success() {
         _MOCK_OTHERS+=("${FN}")
     fi
 
-    eval "function ${FN}() { _success_mock '${FN}' \"\$@\"; }"
+    eval "function ${FN}() { _mock_func '${FN}' \"\$@\"; return 0; }"
 }
 
 # mock_success_and_set $1=fn-name $2=variable $3=value
@@ -105,7 +93,7 @@ mock_success_and_set() {
         _MOCK_OTHERS+=("${FN}")
     fi
 
-    eval "function ${FN}() { ${VAR}=\"${VAL}\"; _success_mock '${FN}' \"\$@\"; }"
+    eval "function ${FN}() { ${VAR}=\"${VAL}\"; _mock_func '${FN}' \"\$@\"; return 0; }"
 }
 
 # mock_success_and_return $1=fn-name $...=output
@@ -131,7 +119,7 @@ mock_success_and_return() {
         _MOCK_OTHERS+=("${FN}")
     fi
 
-    eval "function ${FN}() { echo \"${OUTPUT}\"; _success_mock '${FN}' \"\$@\"; }"
+    eval "function ${FN}() { echo \"${OUTPUT}\"; _mock_func '${FN}' \"\$@\"; return 0; }"
 }
 
 # mock_error $1=fn-name
@@ -140,6 +128,48 @@ mock_error() {
     if [[ -z "${FN}" ]]; then
         echo "mock_error requires function name"
         exit 1
+    fi
+
+    local EXITCODE="${2:-1}"
+
+    if _is_function "${FN}"; then
+        if ! _rename_function "${FN}" "${FN}__save__"; then
+            echo "function ${FN} could be renamed"
+            exit 1
+        fi
+        _MOCK_FUNCS+=("${FN}")
+    else
+        _MOCK_OTHERS+=("${FN}")
+    fi
+
+    eval "function ${FN}() { _mock_func '${FN}' \"\$@\"; return ${EXITCODE}; }"
+}
+
+# mock_sudo mocks sudo and just invokes the passed command and returns
+# its exit code.
+mock_sudo() {
+    _MOCK_OTHERS+=("sudo")
+    eval "function sudo() { _mock_func 'sudo' \"\$@\"; \"\$@\"; return; }"
+}
+
+# mock_custom $1=fn-name $2=impl
+# mock_custom mocks fn-name with the given custom implementation. If
+# the impl is "-", reads the impl from stdin. The exit code is
+# determined by the impl
+mock_custom() {
+    local FN="${1:-}"
+    if [[ -z "${FN}" ]]; then
+        echo "mock_custom requires function name"
+        exit 1
+    fi
+
+    local BODY="${2:-}"
+    if [[ -z "${BODY}" ]]; then
+        echo "mock_custom requires a function body"
+        exit 1
+    fi
+    if [[ "${BODY}" == "-" ]]; then
+        BODY="$(cat)"
     fi
 
     if _is_function "${FN}"; then
@@ -152,7 +182,7 @@ mock_error() {
         _MOCK_OTHERS+=("${FN}")
     fi
 
-    eval "function ${FN}() { _error_mock '${FN}' \"\$@\"; }"
+    eval "function ${FN}() { _mock_func '${FN}' \"\$@\"; ${BODY}; return; }"
 }
 
 clear_mock_calls() {

@@ -15,7 +15,7 @@ while IFS= read -d $'\0' TEST_FILE; do
         FAILED=true
     fi
     echo
-done < <(find . -type f -a -name "test_*.sh" -print0)
+done < <(find -s . -type f -a -name "test_*.sh" -print0)
 
 if "${FAILED}"; then
     echo "One or more test suites failed."

@@ -26,6 +26,18 @@ assert_fails() {
     return 0
 }
 
+assert_exit_code() {
+    local EC="$1"
+    shift
+
+    "$@"
+    local GOT="$?"
+    [[ "${GOT}" -eq 0 ]] && assert_failed "command $*: passed with rc $?"
+    [[ "${GOT}" -ne "${EC}" ]] && assert_failed "command $*: failed with rc ${GOT}, but wanted ${EC}"
+
+    return 0
+}
+
 assert_stderr_contains() {
     local EXPECTED="$1"
     shift
