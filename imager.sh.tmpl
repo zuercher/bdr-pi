@@ -275,6 +275,7 @@ set_wifi_config() {
 
         SSID="$(prompt "Enter an SSID")"
         PASS="$(prompt_pw "Enter a password for ${SSID}")"
+        echo
 
         if [[ -z "${SSID}" ]] || [[ -z "${PASS}" ]]; then
             abort "network config requires both an SSID and password"
