@@ -2,7 +2,7 @@
 
 [[ -z "${BDRPI_CONFIG}" ]] && BDRPI_CONFIG="/boot/bdrpi-config.txt"
 [[ -z "${BDRPI_SETUP_SH}" ]] && BDRPI_CONFIG="/boot/bdrpi-setup.sh"
-[[ -z "${BDRPI_LOG}" ]] && BDRPI_CONFIG="/boot/bdrpi.log"
+[[ -z "${BDRPI_LOG}" ]] && BDRPI_LOG="/boot/bdrpi.log"
 
 logger() {
     local MSG="$*"
