@@ -1,16 +1,28 @@
 #!/bin/bash
 
-logger "starting $0"
-
 [[ -z "${BDRPI_CONFIG}" ]] && BDRPI_CONFIG="/boot/bdrpi-config.txt"
 [[ -z "${BDRPI_SETUP_SH}" ]] && BDRPI_CONFIG="/boot/bdrpi-setup.sh"
+[[ -z "${BDRPI_LOG}" ]] && BDRPI_CONFIG="/boot/bdrpi.log"
 
-sed_inplace() {
-    if [[ "$(uname)" == "Darwin" ]]; then
-        sed -i '' "$@"
-    else
-        sed -i "$@"
-    fi
+logger() {
+    local MSG="$*"
+
+    echo "${MSG}" >>"${BDRPI_LOG}"
+    echo "${MSG}"
+}
+
+abort() {
+    local MSG="$*"
+
+    # something bad happened, don't cleanup
+    trap - EXIT
+
+    logger "FATAL: ${MSG}"
+
+    # give the user some time to read the error
+    sleep 10
+
+    exit 1
 }
 
 cleanup() {
@@ -24,9 +36,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-abort() {
-    logger -p user:error "$*"
-    exit 1
+sed_inplace() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
 }
 
 getconfig() {
@@ -83,6 +98,8 @@ configure_user() {
     logger "remove user password from setup config"
     sed_inplace -E -e "/^FIRST_RUN_PASS=.*/d"
 }
+
+logger "starting $0"
 
 # create user with PW from /boot/bdrpi-config.txt
 USER="$(getconfig FIRST_RUN_USER)"
