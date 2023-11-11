@@ -621,6 +621,17 @@ clear_setup_config_array() {
     fi
 }
 
+usage() {
+    perror "Usage:"
+    perror "    $0 [--configure-network]"
+    perror
+    perror "Options:"
+    perror "    --configure-network"
+    perror "        Skip checking for network access and immediately initiate"
+    perror "        wifi configuration, even if there is a connection."
+    exit 1
+}
+
 # Require bash
 # shellcheck disable=SC2292
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -642,20 +653,21 @@ mkdir -p "${BDR_DIR}" || abort "could not create dir: ${BDR_DIR}"
 REPO="https://github.com/zuercher/bdr-pi"
 BDR_REPO_DIR="${HOME}/.bdr-pi/bdr-pi"
 
-FIRST_BOOT=false
+CONFIGURE_NETWORK=false
 while [[ -n "${1:-}" ]]; do
     case "$1" in
-        --first-boot)
-            FIRST_BOOT=true
+        --configure-network)
+            CONFIGURE_NETWORK=true
             shift
             ;;
         *)
-            abort "usage: $0 [--first-boot]"
+            usage
+            ;;
     esac
 done
 
-NEWTORK_OK=false
-if ! "${FIRST_BOOT}"; then
+NETWORK_OK=false
+if ! "${CONFIGURE_NETWORK}"; then
     N=0
     NUM_ATTEMPTS=30
     while [[ "${N}" -lt "${NUM_ATTEMPTS}" ]]; do
@@ -672,28 +684,27 @@ if ! "${FIRST_BOOT}"; then
 
     if ! "${NETWORK_OK}"; then
         perror "failed to reach ${REPO}, starting wifi setup..."
-
-        if "${FIRST_BOOT}"; then
-            wireless_network_setup --first-boot
-        else
-            wireless_network_setup
-        fi
-
-        report "wireless setup complete; waiting for the internet to become reachable..."
-
-        N=0
-        NUM_ATTEMPTS=30
-        while ! network_can_reach "${REPO}"; do
-            N=$((N + 1))
-            if [[ "${N}" -ge 60 ]]; then
-                abort "failed to reach ${REPO} for 60 seconds, something's fucky"
-            fi
-
-            LEFT=$((NUM_ATTEMPTS - N))
-            perror "unable to reach ${REPO}, will retry ${LEFT} more times..."
-            sleep 1
-        done
+        CONFIGURE_NETWORK=true
     fi
+fi
+
+if "${CONFIGURE_NETWORK}"; then
+   wireless_network_setup
+
+   report "wireless setup complete; waiting for the internet to become reachable..."
+
+   N=0
+   NUM_ATTEMPTS=30
+   while ! network_can_reach "${REPO}"; do
+       N=$((N + 1))
+       if [[ "${N}" -ge 60 ]]; then
+           abort "failed to reach ${REPO} for 60 seconds, something's fucky"
+       fi
+
+       LEFT=$((NUM_ATTEMPTS - N))
+       perror "unable to reach ${REPO}, will retry ${LEFT} more times..."
+       sleep 1
+   done
 fi
 
 # Check if git is installed.
