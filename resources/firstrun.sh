@@ -126,7 +126,7 @@ if ! grep -q "BEGIN_ON_REBOOT" "/home/${BDR_USER}/.bashrc"; then
     logger "configuring autolaunch of setup script for ${BDR_USER}"
     cat >>"/home/${BDR_USER}/.bashrc" << EOF
       # BEGIN_ON_REBOOT
-      /home/${BDR_USER}/setup.sh
+      /home/${BDR_USER}/setup.sh --configure-network
       # END_ON_REBOOT
 EOF
 fi
@@ -141,17 +141,5 @@ cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
 ExecStart=
 ExecStart=-/sbin/agetty --autologin ${BDR_USER} --noclear %I \$TERM
 EOF
-
-# setup wireless iface
-DESIRED_COUNTRY="$(getconfig WIFI_COUNTRY)"
-DESIRED_COUNTRY="${DESIRED_COUNTRY:-US}"
-
-logger "configuring wifi hardware..."
-COUNTRY="$(iw reg get | sed -n -E -e "s/country ([A-Z]+):.*/\1/p")"
-logger "  country is ${COUNTRY}"
-if [[ "${COUNTRY}" != "${DESIRED_COUNTRY}" ]]; then
-    logger "  set countrhy to ${DESIRED_COUNTRY}"
-    iw reg set "${DESIRED_COUNTRY}" 2> /dev/null
-fi
 
 exit 0
