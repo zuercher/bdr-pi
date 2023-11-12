@@ -9,7 +9,7 @@ source "${_TEST_ROOT_DIR}/mocks.sh"
 
 source "${_ROOT_DIR}/lib/boot_config.sh"
 
-export BDRPI_BOOT_CONFIG_TXT="${TMPDIR:-/tmp/}/bdrpi-test-boot-config.$$.txt"
+export BDRPI_BOOT_CONFIG_TXT="${TMPDIR:-/tmp/}/bdr-pi-test-boot-config.$$.txt"
 
 before_each() {
     mock_success reboot_required

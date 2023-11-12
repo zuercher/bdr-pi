@@ -15,7 +15,8 @@ _SETUP_CONFIG_VALUES=()
 _SETUP_CONFIG_LOADED="false"
 
 _write_config() {
-    local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
+    local FILE="${BDRPI_SETUP_CONFIG_FILE}"
+    [[ -n "${FILE}" ]] || abort "BDR_SETUP_CONFIG_FILE not set"
 
     _load_config_once
 
@@ -31,7 +32,8 @@ _write_config() {
 }
 
 _load_config() {
-    local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
+    local FILE="${BDRPI_SETUP_CONFIG_FILE}"
+    [[ -n "${FILE}" ]] || abort "BDR_SETUP_CONFIG_FILE not set"
 
     _SETUP_CONFIG_KEYS=()
     _SETUP_CONFIG_VALUES=()

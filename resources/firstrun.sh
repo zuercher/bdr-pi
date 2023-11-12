@@ -1,8 +1,8 @@
 #!/bin/bash
 
-[[ -z "${BDRPI_CONFIG}" ]] && BDRPI_CONFIG="/boot/bdrpi-config.txt"
-[[ -z "${BDRPI_SETUP_SH}" ]] && BDRPI_SETUP_SH="/boot/bdrpi-setup.sh"
-[[ -z "${BDRPI_LOG}" ]] && BDRPI_LOG="/boot/bdrpi.log"
+[[ -z "${BDRPI_CONFIG}" ]] && BDRPI_CONFIG="/boot/bdr-pi-config.txt"
+[[ -z "${BDRPI_SETUP_SH}" ]] && BDRPI_SETUP_SH="/boot/bdr-pi-setup.sh"
+[[ -z "${BDRPI_LOG}" ]] && BDRPI_LOG="/boot/bdr-pi.log"
 
 logger() {
     local MSG="$*"
@@ -30,7 +30,7 @@ cleanup() {
     sed_inplace 's/ systemd.run.*//g' /boot/cmdline.txt
 
     # clean ourselves up
-    rm -f /boot/bdrpi-firstrun.sh
+    rm -f /boot/bdr-pi-firstrun.sh
 
     logger "completed $0"
 }
@@ -79,7 +79,6 @@ configure_user() {
         fi
     fi
 
-
     # as in /usr/lib/userconfig-pi/userconfig
     logger "cancel user-service rename"
     /usr/bin/cancel-rename "${BDR_USER}"
@@ -96,12 +95,12 @@ configure_user() {
 
     # delete the password from the config
     logger "remove user password from setup config"
-    sed_inplace -E -e "/^FIRST_RUN_PASS=.*/d"
+    sed_inplace -e "/^FIRST_RUN_PASS=.*/d" "${BDRPI_CONFIG}"
 }
 
 logger "starting $0"
 
-# create user with PW from /boot/bdrpi-config.txt
+# create user with PW from /boot/bdr-pi-config.txt
 BDR_USER="$(getconfig FIRST_RUN_USER)"
 if [[ -z "${BDR_USER}" ]]; then
     BDR_USER="pi"
@@ -114,11 +113,19 @@ if [[ -n "${BDR_PASS}" ]]; then
     configure_user "${BDR_USER}" "${BDR_PASS}"
 fi
 
-# copy /boot/bdr-setup.sh to /home/$BDR_USER
+# copy /boot/bdr-setup.sh to /home/$BDR_USER/setup.sh
 if [[ ! -f "/home/${BDR_USER}/setup.sh" ]]; then
     logger "copying setup script to user home"
     cp "${BDRPI_SETUP_SH}" "/home/${BDR_USER}/setup.sh" || \
         abort "failed to copy ${BDRPI_SETUP_SH}"
+    chown "${BDR_USER}" "/home/${BDR_USER}/setup.sh"
+
+    logger "copying config to user home"
+    local BDRPI_DIR="/home/${BDR_USER}/.bdr-pi"
+    mkdir -p "${BDRPI_DIR}"
+    cp "${BDRPI_CONFIG}" "/home/${BDR_USER}/.bdr-pi/config.txt"
+
+    chown -R "${BDR_USER}" "${BDRPI_DIR}"
 fi
 
 # append start code to /home/$BDR_USER/.bashrc

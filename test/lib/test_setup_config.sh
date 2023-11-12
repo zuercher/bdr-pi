@@ -8,7 +8,7 @@ source "${_TEST_ROOT_DIR}/assertions.sh"
 
 source "${_ROOT_DIR}/lib/setup_config.sh"
 
-export BDRPI_SETUP_CONFIG_FILE="${TMPDIR:-/tmp/}/bdrpi-test-setup-config.$$.txt"
+export BDRPI_SETUP_CONFIG_FILE="${TMPDIR:-/tmp/}/bdr-pi-test-setup-config.$$.txt"
 
 after_each() {
     rm -f "${BDRPI_SETUP_CONFIG_FILE}"

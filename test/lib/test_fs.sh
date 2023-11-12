@@ -9,7 +9,7 @@ source "${_TEST_ROOT_DIR}/mocks.sh"
 
 source "${_ROOT_DIR}/lib/fs.sh"
 
-BDRPI_TEST_DIR="${TMPDIR:-/tmp/}bdrpi-test-fs.$$"
+BDRPI_TEST_DIR="${TMPDIR:-/tmp/}bdr-pi-test-fs.$$"
 
 before_all() {
     mkdir -p "${BDRPI_TEST_DIR}/a"

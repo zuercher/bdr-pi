@@ -400,7 +400,8 @@ _SETUP_CONFIG_VALUES=()
 _SETUP_CONFIG_LOADED="false"
 
 _write_config() {
-    local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
+    local FILE="${BDRPI_SETUP_CONFIG_FILE}"
+    [[ -n "${FILE}" ]] || abort "BDR_SETUP_CONFIG_FILE not set"
 
     _load_config_once
 
@@ -416,7 +417,8 @@ _write_config() {
 }
 
 _load_config() {
-    local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
+    local FILE="${BDRPI_SETUP_CONFIG_FILE}"
+    [[ -n "${FILE}" ]] || abort "BDR_SETUP_CONFIG_FILE not set"
 
     _SETUP_CONFIG_KEYS=()
     _SETUP_CONFIG_VALUES=()
@@ -649,6 +651,8 @@ fi
 
 BDR_DIR="${HOME}/.bdr-pi"
 mkdir -p "${BDR_DIR}" || abort "could not create dir: ${BDR_DIR}"
+
+export BDRPI_SETUP_CONFIG_FILE="${HOME}/.bdr-pi/config.txt"
 
 REPO="https://github.com/zuercher/bdr-pi"
 BDR_REPO_DIR="${HOME}/.bdr-pi/bdr-pi"

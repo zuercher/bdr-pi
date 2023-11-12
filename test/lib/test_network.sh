@@ -9,7 +9,7 @@ source "${_TEST_ROOT_DIR}/mocks.sh"
 
 source "${_ROOT_DIR}/lib/network.sh"
 
-export TEST_TMPDIR="${TMPDIR:-/tmp/}/bdrpi-test-network.$$"
+export TEST_TMPDIR="${TMPDIR:-/tmp/}/bdr-pi-test-network.$$"
 export BDRPI_SYS_CLASS_NET="${TEST_TMPDIR}/sys/class/net"
 export BDRPI_VAR_LIB_SYSTEMD_RFKILL="${TEST_TMPDIR}/var/lib/systemd/rfkill"
 export BDRPI_SETUP_CONFIG_FILE="${TEST_TMPDIR}/setup_config.txt"

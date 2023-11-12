@@ -9,7 +9,7 @@ source "${_TEST_ROOT_DIR}/mocks.sh"
 
 source "${_ROOT_DIR}/lib/reboot.sh"
 
-export SETUP_HOME="${TMPDIR:-/tmp/}bdrpi-test-reboot.$$"
+export SETUP_HOME="${TMPDIR:-/tmp/}bdr-pi-test-reboot.$$"
 export SETUP_USER="bob"
 
 before_all() {

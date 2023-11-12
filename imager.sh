@@ -129,7 +129,8 @@ _SETUP_CONFIG_VALUES=()
 _SETUP_CONFIG_LOADED="false"
 
 _write_config() {
-    local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
+    local FILE="${BDRPI_SETUP_CONFIG_FILE}"
+    [[ -n "${FILE}" ]] || abort "BDR_SETUP_CONFIG_FILE not set"
 
     _load_config_once
 
@@ -145,7 +146,8 @@ _write_config() {
 }
 
 _load_config() {
-    local FILE="${BDRPI_SETUP_CONFIG_FILE:-/boot/bdrpi-config.txt}"
+    local FILE="${BDRPI_SETUP_CONFIG_FILE}"
+    [[ -n "${FILE}" ]] || abort "BDR_SETUP_CONFIG_FILE not set"
 
     _SETUP_CONFIG_KEYS=()
     _SETUP_CONFIG_VALUES=()
@@ -451,20 +453,30 @@ download_resource() {
             abort "failed to download ${IMAGEURL}"
     fi
 
+    local FINAL_CACHE_FILE="${CACHE_FILE}"
+    if [[ "${CACHE_FILE}" = *.xz ]]; then
+        FINAL_CACHE_FILE="${CACHE_FILE/%\.xz/}"
+
+        if [[ -f "${FINAL_CACHE_FILE}" ]]; then
+            perror "Using cached uncompressed file ${FINAL_CACHE_FILE}"
+        else
+            perror "Decompressing ${CACHE_FILE}"
+            xz --decompress --stdout --thread=0 "${CACHE_FILE}" > "${FINAL_CACHE_FILE}"
+        fi
+    fi
+
     if [[ -n "${HASH}" ]]; then
-        perror "Validating file..."
+        perror "Validating ${FINAL_CACHE_FILE}..."
 
-        local FILE FILEHASH
-
-        FILE="$(prep_image "${CACHE_FILE}")"
-        FILEHASH="$(shasum -a 256 "${FILE}" | awk '{print $1}')"
+        local FILEHASH
+        FILEHASH="$(shasum -a 256 "${FINAL_CACHE_FILE}" | awk '{print $1}')"
 
         [[ "${FILEHASH}" == "${HASH}" ]] || abort "hash mismatch got ${FILEHASH}, expected ${HASH}"
 
         perror "ok"
     fi
 
-    echo "${CACHE_FILE}"
+    echo "${FINAL_CACHE_FILE}"
 }
 
 # get a list of images via OSLIST_URL
@@ -501,24 +513,6 @@ list_images() {
     jq -r '.name + "\n\t" + .url + "\n"' "${IMAGELIST}"
 
     return 0
-}
-
-# if the file is compressed, decompress it and return a path to the decompressed file,
-# otherwise just returns the file
-prep_image() {
-    local IMAGE="${1}"
-
-    if [[ "${IMAGE}" = *.xz ]]; then
-        local BASE RESULT
-        BASE="$(basename "${IMAGE}")"
-        RESULT="$(tmpfile "${BASE/%\.xz/}")"
-        if [[ ! -f "${RESULT}" ]]; then
-            xz --decompress --stdout --thread=0 "${IMAGE}" > "${RESULT}"
-        fi
-        echo "${RESULT}"
-    else
-        echo "${IMAGE}"
-    fi
 }
 
 # prompt the user to select an image to use
@@ -568,6 +562,7 @@ set_wifi_config() {
     WIFI_COUNTRY="$(prompt_default US "Specify wifi country code")"
 
     if [[ "${WIFI_COUNTRY}" =~ ^[A-Z][A-Z]$ ]]; then
+        echo "Wifi country code: ${WIFI_COUNTRY}"
         set_setup_config WIFI_COUNTRY "${WIFI_COUNTRY}"
     else
         abort "Wifi country must be a two-digit country identifier (e.g. US or GB)"
@@ -579,13 +574,13 @@ set_wifi_config() {
         perror
 
         if [[ "${NUM}" -eq 0 ]]; then
-            perror "Preconfiguring a wifi network allows bdrpi configuration to proceed"
+            perror "Preconfiguring a wifi network allows bdr-pi configuration to proceed"
             perror "on first boot without user intervention."
 
             ADD_WIFI="$(prompt_yesno "Pre-configure wifi?")"
         else
             if [[ "${NUM}" -eq 1 ]]; then
-                perror "Preconfiguring additional wifi networks (e.g. the pepwave) allows bdrpi"
+                perror "Preconfiguring additional wifi networks (e.g. the pepwave) allows bdr-pi"
                 perror "configuration to proceed with zero intervention."
             fi
 
@@ -640,15 +635,28 @@ set_lifepo4wered_config() {
 }
 
 set_user_config() {
-    local USER PASS
+    local USER PASS PASS_AGAIN
 
     perror "User configuration. Password is temporarily stored in the image."
 
     USER="$(prompt_default "pi" "Select a username")"
     [[ -n "${USER}" ]] || abort "must select a username"
 
-    PASS="$(prompt_pw "Password")"
-    [[ -n "${PASS}" ]] || abort "must select a pasword"
+    while true; do
+        PASS="$(prompt_pw "Password")"
+        echo
+        [[ -n "${PASS}" ]] || abort "must select a password"
+
+        PASS_AGAIN="$(prompt_pw "Re-enter password")"
+        echo
+        if [[ "${PASS}" == "${PASS_AGAIN}" ]]; then
+            break
+        fi
+
+        echo
+        echo "Passwords did not match. Please try again."
+        echo
+    done
 
     set_setup_config FIRST_RUN_USER "${USER}"
     set_setup_config FIRST_RUN_PASS "${PASS}"
@@ -715,6 +723,7 @@ image() {
     # format the disk
     perror
     perror "Formatting disk..."
+    perror "  (This uses sudo and may ask for your password.)"
     ${SAFE} sudo diskutil eraseDisk FAT32 "BDR_PI" MBRFormat "${DISK}" || \
         abort "format operation failed"
 
@@ -743,7 +752,7 @@ image() {
 
     # Write the image. rpi-imager skips the first 4kb and then writes
     # it last. Not sure why.
-    ${SAFE} sudo dd bs=1m if="$(prep_image "${IMAGE}")" of="${RDISK}" status=progress
+    ${SAFE} sudo dd bs=1m if="${IMAGE}" of="${RDISK}" status=progress
 
     perror "...done"
 
@@ -764,7 +773,7 @@ image() {
         [[ -n "${VOLUME}" ]] || abort "could not find volume for ${DISK}"
     fi
 
-    export BDRPI_SETUP_CONFIG_FILE="${VOLUME}/bdrpi-config.txt"
+    export BDRPI_SETUP_CONFIG_FILE="${VOLUME}/bdr-pi-config.txt"
     perror
     perror "Writing setup config to ${BDRPI_SETUP_CONFIG_FILE}"
 
@@ -774,13 +783,13 @@ image() {
     perror
     set_lifepo4wered_config
 
-    cp "${ROOT_DIR}/resources/firstrun.sh" "${VOLUME}/bdrpi-firstrun.sh"
-    cp "${ROOT_DIR}/docs/setup.sh" "${VOLUME}/bdrpi-setup.sh"
+    cp "${ROOT_DIR}/resources/firstrun.sh" "${VOLUME}/bdr-pi-firstrun.sh"
+    cp "${ROOT_DIR}/docs/setup.sh" "${VOLUME}/bdr-pi-setup.sh"
 
     if [[ -f "${VOLUME}/cmdline.txt" ]]; then
         local CMDLINE
         CMDLINE="$(cat "${VOLUME}/cmdline.txt")"
-        CMDLINE="${CMDLINE} systemd.run=/boot/bdrpi-firstrun.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target"
+        CMDLINE="${CMDLINE} systemd.run=/boot/bdr-pi-firstrun.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target"
         ${SAFE} echo "${CMDLINE}" >"${VOLUME}/cmdline.txt" || abort "unable to write ${VOLUME}/cmdline.txt"
     fi
 
