@@ -698,10 +698,10 @@ if "${CONFIGURE_NETWORK}"; then
    report "wireless setup complete; waiting for the internet to become reachable..."
 
    N=0
-   NUM_ATTEMPTS=30
+   NUM_ATTEMPTS=60
    while ! network_can_reach "${REPO}"; do
        N=$((N + 1))
-       if [[ "${N}" -ge 60 ]]; then
+       if [[ "${N}" -ge "${NUM_ATTEMPTS}" ]]; then
            abort "failed to reach ${REPO} for 60 seconds, something's fucky"
        fi
 
