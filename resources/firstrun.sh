@@ -11,6 +11,11 @@ logger() {
     echo "${MSG}"
 }
 
+log_output() {
+    echo "CMD: $*" >>"${BDRPI_LOG}"
+    "$@" >>"${BDRPI_LOG}" 2>&1
+}
+
 abort() {
     local MSG="$*"
 
@@ -114,26 +119,38 @@ if [[ -n "${BDR_PASS}" ]]; then
 fi
 
 # copy /boot/bdr-setup.sh to /home/$BDR_USER/setup.sh
-if [[ ! -f "/home/${BDR_USER}/setup.sh" ]]; then
-    logger "copying setup script to user home"
-    cp "${BDRPI_SETUP_SH}" "/home/${BDR_USER}/setup.sh" || \
+BDR_USER_HOME="/home/${BDR_USER}"
+if [[ ! -f "\"${BDR_USER_HOME}/setup.sh" ]]; then
+    logger "copying setup script to user home (${BDR_USER_HOME})"
+    log_output \
+        cp "${BDRPI_SETUP_SH}" "${BDR_USER_HOME}/setup.sh" || \
         abort "failed to copy ${BDRPI_SETUP_SH}"
-    chown "${BDR_USER}" "/home/${BDR_USER}/setup.sh"
+    log_output \
+        chown "${BDR_USER}" "${BDR_USER_HOME}/setup.sh" || \
+        abort "failed to chown the setup script"
 
-    logger "copying config to user home"
-    local BDRPI_DIR="/home/${BDR_USER}/.bdr-pi"
-    mkdir -p "${BDRPI_DIR}"
-    cp "${BDRPI_CONFIG}" "/home/${BDR_USER}/.bdr-pi/config.txt"
+    local BDRPI_DIR="${BDR_USER_HOME}/.bdr-pi"
+    log_output \
+        mkdir -p "${BDRPI_DIR}" || \
+        abort "failed to create ${BDRPI_DIR}"
 
-    chown -R "${BDR_USER}" "${BDRPI_DIR}"
+    logger "copying config to ${BDRPI_DIR}/config.txt"
+    log_output \
+        cp "${BDRPI_CONFIG}" "${BDRPI_DIR}/config.txt" || \
+        abort "failed to copy ${BDRPI_CONFIG}"
+
+    logger "updating permissions on ${BDRPI_DIR}"
+    log_output \
+        chown -R "${BDR_USER}" "${BDRPI_DIR}" || \
+        abort "failed to chown ${BDRPI_DIR}"
 fi
 
 # append start code to /home/$BDR_USER/.bashrc
-if ! grep -q "BEGIN_ON_REBOOT" "/home/${BDR_USER}/.bashrc"; then
+if ! grep -q "BEGIN_ON_REBOOT" "${BDR_USER_HOME}/.bashrc"; then
     logger "configuring autolaunch of setup script for ${BDR_USER}"
-    cat >>"/home/${BDR_USER}/.bashrc" << EOF
+    cat >>"${BDR_USER_HOME}/.bashrc" << EOF
       # BEGIN_ON_REBOOT
-      /home/${BDR_USER}/setup.sh --configure-network
+      ${BDR_USER_HOME}/setup.sh --configure-network
       # END_ON_REBOOT
 EOF
 fi
