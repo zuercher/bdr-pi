@@ -15,7 +15,7 @@ run_stage() {
 
     sed_inplace "s/^\s*XKBLAYOUT=\S*/XKBLAYOUT=\"${LAYOUT}\"/" "${CONFIG}"
 
-    reprt "setting ${CTRL_OPT} (caps lock is control)"
+    report "setting ${CTRL_OPT} (caps lock is control)"
 
     local OPTIONS="$(source "${CONFIG}"; echo "${XKBOPTIONS}")"
     if [[ -z "${OPTIONS}" ]]; then
