@@ -2,7 +2,7 @@
 
 _MOCK_FUNCS=()
 _MOCK_OTHERS=()
-_MOCK_DIR="${TMPDIR:-/tmp/}bdrpi-test-mocks.$$"
+_MOCK_DIR="${TMPDIR:-/tmp/}bdr-pi-test-mocks.$$"
 _MOCK_CALLS="${_MOCK_DIR}/mock-calls"
 
 mkdir -p "${_MOCK_DIR}"
