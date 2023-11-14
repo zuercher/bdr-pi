@@ -129,7 +129,7 @@ if [[ ! -f "\"${BDR_USER_HOME}/setup.sh" ]]; then
         chown "${BDR_USER}" "${BDR_USER_HOME}/setup.sh" || \
         abort "failed to chown the setup script"
 
-    local BDRPI_DIR="${BDR_USER_HOME}/.bdr-pi"
+    BDRPI_DIR="${BDR_USER_HOME}/.bdr-pi"
     log_output \
         mkdir -p "${BDRPI_DIR}" || \
         abort "failed to create ${BDRPI_DIR}"
