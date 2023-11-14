@@ -128,11 +128,17 @@ _SETUP_CONFIG_KEYS=()
 _SETUP_CONFIG_VALUES=()
 _SETUP_CONFIG_LOADED="false"
 
+_debug() {
+    perror "$@"
+}
+
 _write_config() {
     local FILE="${BDRPI_SETUP_CONFIG_FILE}"
     [[ -n "${FILE}" ]] || abort "BDR_SETUP_CONFIG_FILE not set"
 
     _load_config_once
+
+    _debug "save config to ${FILE}"
 
     rm -f "${FILE}"
     touch "${FILE}"
@@ -149,14 +155,18 @@ _load_config() {
     local FILE="${BDRPI_SETUP_CONFIG_FILE}"
     [[ -n "${FILE}" ]] || abort "BDR_SETUP_CONFIG_FILE not set"
 
+    _debug "loading config from ${FILE}"
+
     _SETUP_CONFIG_KEYS=()
     _SETUP_CONFIG_VALUES=()
 
     if ! [[ -s "${FILE}" ]]; then
         # missing or empty is ok
+        _debug "loaded empty config from ${FILE}"
         return 0
     fi
 
+    local N=0
     local LINE
     while IFS= read -r LINE; do
         local KEY="${LINE%=*}"
@@ -168,7 +178,11 @@ _load_config() {
         local VALUE="${LINE#"${KEY}"=}"
         _SETUP_CONFIG_KEYS+=("${KEY}")
         _SETUP_CONFIG_VALUES+=("${VALUE}")
+
+        N=$((N + 1))
     done < "${FILE}"
+
+    _debug "loaded ${N} config entries from ${FILE}"
 }
 
 _load_config_once() {
