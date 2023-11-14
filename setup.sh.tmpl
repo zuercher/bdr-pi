@@ -139,6 +139,7 @@ script --quiet --flush --log-out "${SETUP_LOGFILE}" \
             SETUP_HOME=\"${HOME}\" \
             SETUP_TTY=\"$(tty)\" \
             SETUP_FLUSH_PID=\"\$PPID\" \
-            BDR_REPO_DIR=\"${BDR_REPO_DIR}\" \
             BDR_DIR=\"${BDR_DIR}\" \
+            BDR_REPO_DIR=\"${BDR_REPO_DIR}\" \
+            BDRPI_SETUP_CONFIG_FILE=\"${BDRPI_SETUP_CONFIG_FILE}\" \
             \"${BDR_REPO_DIR}/update.sh\" $*'"
