@@ -15,7 +15,7 @@ _SETUP_CONFIG_VALUES=()
 _SETUP_CONFIG_LOADED="false"
 
 _debug() {
-    perror "$@"
+    true || perror "$@"
 }
 
 _write_config() {

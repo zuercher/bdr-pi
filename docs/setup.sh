@@ -67,12 +67,27 @@ prompt() {
     echo "${ANSWER}"
 }
 
-# prompt_yesno $1...=prompt
+# prompt_yesno $1=default $2...=prompt
 #   prompts the user and returns their yes/no response
 prompt_yesno() {
-    local ANSWER
+    local ANSWER DEAFULT DEFAULT_DESC
 
-    read -er -p "$* [y/N]: " ANSWER
+    DEFAULT="$(echo "$1" | tr '[:lower:]' '[:upper:]')"
+    shift
+
+    case "${DEFAULT}" in
+        Y|YES)
+            DEFAULT_DESC="Y"
+            ;;
+        *)
+            DEFAULT_DESC="N"
+            ;;
+    esac
+
+    read -er -p "$* [${DEFAULT_DESC}]: " ANSWER
+    if [[ -z "${ANSWER}" ]]; then
+        ANSWER="${DEFAULT}"
+    fi
     case "$(echo "${ANSWER}" | tr '[:lower:]' '[:upper:]')" in
         Y|YES)
             echo "Y"
@@ -400,7 +415,7 @@ _SETUP_CONFIG_VALUES=()
 _SETUP_CONFIG_LOADED="false"
 
 _debug() {
-    perror "$@"
+    true || perror "$@"
 }
 
 _write_config() {

@@ -86,12 +86,27 @@ prompt() {
     echo "${ANSWER}"
 }
 
-# prompt_yesno $1...=prompt
+# prompt_yesno $1=default $2...=prompt
 #   prompts the user and returns their yes/no response
 prompt_yesno() {
-    local ANSWER
+    local ANSWER DEAFULT DEFAULT_DESC
 
-    read -er -p "$* [y/N]: " ANSWER
+    DEFAULT="$(echo "$1" | tr '[:lower:]' '[:upper:]')"
+    shift
+
+    case "${DEFAULT}" in
+        Y|YES)
+            DEFAULT_DESC="Y"
+            ;;
+        *)
+            DEFAULT_DESC="N"
+            ;;
+    esac
+
+    read -er -p "$* [${DEFAULT_DESC}]: " ANSWER
+    if [[ -z "${ANSWER}" ]]; then
+        ANSWER="${DEFAULT}"
+    fi
     case "$(echo "${ANSWER}" | tr '[:lower:]' '[:upper:]')" in
         Y|YES)
             echo "Y"
@@ -129,7 +144,7 @@ _SETUP_CONFIG_VALUES=()
 _SETUP_CONFIG_LOADED="false"
 
 _debug() {
-    perror "$@"
+    true || perror "$@"
 }
 
 _write_config() {
@@ -591,14 +606,14 @@ set_wifi_config() {
             perror "Preconfiguring a wifi network allows bdr-pi configuration to proceed"
             perror "on first boot without user intervention."
 
-            ADD_WIFI="$(prompt_yesno "Pre-configure wifi?")"
+            ADD_WIFI="$(prompt_yesno Y "Pre-configure wifi?")"
         else
             if [[ "${NUM}" -eq 1 ]]; then
                 perror "Preconfiguring additional wifi networks (e.g. the pepwave) allows bdr-pi"
                 perror "configuration to proceed with zero intervention."
             fi
 
-            ADD_WIFI="$(prompt_yesno "Pre-configure another wifi network?")"
+            ADD_WIFI="$(prompt_yesno N "Pre-configure another wifi network?")"
         fi
 
         if [[ "${ADD_WIFI}" != "Y" ]]; then
@@ -606,14 +621,26 @@ set_wifi_config() {
         fi
         NUM=$((NUM+1))
 
-        SSID="$(prompt "Enter an SSID")"
-        PASS="$(prompt_pw "Enter a password for ${SSID}")"
-        echo
+        local SSID PASS PASS_AGAIN
+        while true; do
+            SSID="$(prompt "Enter an SSID")"
+            PASS="$(prompt_pw "Enter a password for ${SSID}")"
+            echo
+
+            PASS_AGAIN="$(prompt_pw "Re-enter password for ${SSID}")"
+            echo
+            if [[ "${PASS}" == "${PASS_AGAIN}" ]]; then
+                break
+            fi
+
+            echo "Passwords didn't match, let's try again."
+            echo
+        done
 
         if [[ -z "${SSID}" ]] || [[ -z "${PASS}" ]]; then
             abort "network config requires both an SSID and password"
         fi
-        HIGH_PRIO="$(prompt_yesno "Make ${SSID} preferred?")"
+        HIGH_PRIO="$(prompt_yesno N "Make ${SSID} preferred?")"
 
         set_setup_config_array WIFI_SSID append "${SSID}"
         set_setup_config_array WIFI_PASS append "${PASS}"
@@ -627,7 +654,7 @@ set_wifi_config() {
 
     perror
 
-    ADD_WIFI="$(prompt_yesno "Skip querying for additional networks during post-boot configuration?")"
+    ADD_WIFI="$(prompt_yesno Y "Skip querying for additional networks during post-boot configuration?")"
     if [[ "${ADD_WIFI}" == "Y" ]]; then
         set_setup_config WIFI_PERFORM_SSID_SETUP "false"
     else
@@ -640,7 +667,7 @@ set_lifepo4wered_config() {
 
     perror "Configuring lifepo4wered-pi requires the hardware be present."
 
-    CONFIG_LIFEPO="$(prompt_yesno "Configure lifepo4wered-pi UPS software during post-boot configuration?")"
+    CONFIG_LIFEPO="$(prompt_yesno Y "Configure lifepo4wered-pi UPS software during post-boot configuration?")"
     if [[ "${CONFIG_LIFEPO}" == "Y" ]]; then
         set_setup_config LIFEPO_PERFORM_SETUP "true"
     else

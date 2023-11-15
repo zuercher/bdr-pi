@@ -55,23 +55,27 @@ test_prompt_default_returns_default() {
 
 test_prompt_yesno() {
     mock_success_and_set read ANSWER "yEs"
-    assert_eq "$(prompt_yesno foo bar)" "Y"
-    expect_mock_called_with_args read -er -p "foo bar [y/N]: " ANSWER
+    assert_eq "$(prompt_yesno N foo bar)" "Y"
+    expect_mock_called_with_args read -er -p "foo bar [N]: " ANSWER
 
-    echo "1"
     clear_mocks
     mock_success_and_set read ANSWER "nos"
-    assert_eq "$(prompt_yesno foo bar)" "N"
+    assert_eq "$(prompt_yesno Y foo bar)" "N"
 
-    echo "2"
     clear_mocks
     mock_success_and_set read ANSWER "whatever"
-    assert_eq "$(prompt_yesno foo bar)" "N"
+    assert_eq "$(prompt_yesno Y foo bar)" "N"
 
-    echo "3"
+    # test defaults
     clear_mocks
     mock_success read
-    assert_eq "$(prompt_yesno foo bar)" "N"
+    assert_eq "$(prompt_yesno N foo bar)" "N"
+    expect_mock_called_with_args read -er -p "foo bar [N]: " ANSWER
+
+    clear_mocks
+    mock_success read
+    assert_eq "$(prompt_yesno Y foo bar)" "Y"
+    expect_mock_called_with_args read -er -p "foo bar [Y]: " ANSWER
 }
 
 test_prompt_pw() {
