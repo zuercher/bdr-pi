@@ -348,6 +348,26 @@ set_user_config() {
     set_setup_config FIRST_RUN_PASS "${PASS}"
 }
 
+set_rotate_display() {
+    local ROTATE
+
+    ROTATE=$(prompt_yesno N "Rotate display 180 degress (RPi official display only)?")
+    if [[ "${ROTATE}" == "Y" ]]; then
+        set_setup_config DISPLAY_ROTATE 180
+    fi
+}
+
+set_autolaunch_racecapture() {
+    local AUTOLAUNCH
+
+    AUTOLAUNCH=$(prompt_yesno Y "Automatically launch racecapture on login?")
+    if [[ "${AUTOLAUNCH}" == "N" ]]; then
+        set_setup_config RACECAPTURE_AUTOLAUNCH false
+    else
+        set_setup_config RACECAPTURE_AUTOLAUNCH true
+    fi
+}
+
 # prepare and write an image to the given $1=disk
 image() {
     local DISK="${1:-}"
@@ -468,6 +488,10 @@ image() {
     set_wifi_config
     perror
     set_lifepo4wered_config
+    perror
+    set_rotate_display
+    perror
+    set_autolaunch_racecapture
 
     cp "${ROOT_DIR}/resources/firstrun.sh" "${VOLUME}/bdr-pi-firstrun.sh"
     cp "${ROOT_DIR}/docs/setup.sh" "${VOLUME}/bdr-pi-setup.sh"

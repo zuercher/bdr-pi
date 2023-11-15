@@ -1,7 +1,10 @@
 #!/bin/bash
 
 run_stage() {
-    report "enabling auto-start of racecapture"
+    local AUTOSTART
+    AUTOSTART="$(get_setup_config RACECAPTURE_AUTOLAUNCH)"
+
+    report "preparing racecapture launch script"
 
     local FILE="bdr_racecapture.sh"
     local SCRIPT_TMPL="${BDR_REPO_DIR}/resources/${FILE}"
@@ -12,6 +15,16 @@ run_stage() {
     if ! sed -e "s/{{SETUP_HOME}}/${ESCAPED_HOME}/g" "${SCRIPT_TMPL}" >"${SCRIPT_TARGET}"; then
         abort "error preparing ${SCRIPT_TARGET}"
     fi
+
+    chown "${SETUP_USER}:${SETUP_USER}" "${SCRIPT_TARGET}"
+    chmod a+x "${SCRIPT_TARGET}"
+
+    if [[ "${AUTOSTART}" == "false" ]]; then
+        report "not enabling auto-start of racecapture, as directed by image config"
+        return 0
+    fi
+
+    report "enabling auto-start of racecapture"
 
     local BASHRC="${SETUP_HOME}/.bashrc"
 
@@ -34,9 +47,6 @@ run_stage() {
       fi
       # ${END_FLAG}
 EOF
-
-    chown "${SETUP_USER}:${SETUP_USER}" "${SCRIPT_TARGET}"
-    chmod a+x "${SCRIPT_TARGET}"
 
     report "configured execution of racecapture on login to /dev/tty1"
 }
