@@ -1,3 +1,5 @@
 .state/*
 logs/*
 _site
+
+test/resources/.fake-voltage

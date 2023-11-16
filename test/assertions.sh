@@ -57,7 +57,7 @@ assert_stdout_contains() {
     shift
 
     local STDOUT
-    STDOUT="$( "$@" 2>/dev/null || :)"
+    STDOUT="$( "$@" 2>/dev/null)" || :
 
     if [[ "${STDOUT}" =~ ${EXPECTED} ]]; then
         return 0

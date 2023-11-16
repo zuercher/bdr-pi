@@ -158,7 +158,7 @@ while [[ -n "$1" ]]; do
 done
 
 validate "blank-threshold" "${BLANK_MV}" 0 "${WAKE_MV:-5000}"
-validate "wake-threshold" "${BLANK_MV}" "${BLANK_MV:-0}" 5000
+validate "wake-threshold" "${WAKE_MV}" "${BLANK_MV:-0}" 5000
 validate "blank-interval" "${BLANK_INTVL}" 0 3600
 validate "wake-interval" "${WAKE_INTVL}" 0 3600
 
