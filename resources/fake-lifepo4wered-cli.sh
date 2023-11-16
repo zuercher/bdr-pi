@@ -1,11 +1,6 @@
 #!/bin/bash
 
-# Test version: looks for .fake_voltage in its own directory.
-
-_TEST_SH="${BASH_SOURCE[0]}"
-_SCRIPT_DIR="$(cd "$(dirname "${_TEST_SH}")" && pwd)"
-
-_VOLTAGE_FILE="${_SCRIPT_DIR}/.fake-voltage"
+VOLTAGE_FILE="/tmp/.bdr-pi-fake-voltage"
 
 if [[ "$1" == "get" ]] && [[ "$2" == "vin" ]]; then
     if [[ -f "${_VOLTAGE_FILE}" ]]; then
