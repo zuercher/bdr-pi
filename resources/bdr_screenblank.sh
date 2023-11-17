@@ -1,14 +1,20 @@
 #!/bin/bash
 
+# perror prints its arguments to stderr.
+perror() {
+    printf "%s\n" "$*" >/dev/stderr
+    return 0
+}
+
 # abort prints its arguments and quits
 abort() {
-    echo "$@"
+    perror "$@"
     exit 1
 }
 
 usage() {
     if [[ -n "$1" ]]; then
-        echo "ERROR: $1"
+        perror "ERROR: $1"
         echo
     fi
     echo "Usage:"
@@ -167,12 +173,12 @@ fi
 [[ -n "${BINARY}" ]] || abort "ERROR: binary must be set"
 
 blank() {
-    echo "blanking"
+    perror "blanking"
     echo -n "1" >"${DEVICE_PATH}"
 }
 
 wake() {
-    echo "waking"
+    perror "waking"
     echo -n "0" >"${DEVICE_PATH}"
 }
 
@@ -187,7 +193,7 @@ wake
 
 while true; do
     CURR_VIN="$(get_vin)"
-    echo "VIN: ${CURR_VIN} mV"
+    perror "VIN: ${CURR_VIN} mV"
 
     if [[ "${STATE}" == "AWAKE" ]]; then
         # Ignore bad vin data and leave the display on.
@@ -202,7 +208,7 @@ while true; do
             STATE="AWAKE"
         fi
     else
-        echo "ERROR: invalid state '${STATE}'"
+        perror "ERROR: invalid state '${STATE}'"
         STATE="AWAKE"
         wake
     fi
