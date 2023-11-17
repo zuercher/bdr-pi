@@ -2,7 +2,7 @@
 
 # perror prints its arguments to stderr.
 perror() {
-    printf "%s\n" "$*" >/dev/stderr
+    printf "%s\n" "$*" 1>&2
     return 0
 }
 

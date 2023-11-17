@@ -3,8 +3,8 @@ Description=BDR Pi Screen Blanking Service
 
 [Service]
 ExecStart=/usr/local/bin/bdr_screenblank.sh
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=bdr_screenblank
 
 [Install]
