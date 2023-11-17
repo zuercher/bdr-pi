@@ -8,4 +8,4 @@ StandardError=journal
 SyslogIdentifier=bdr_screenblank
 
 [Install]
-WantedBy=multi_user.service
+WantedBy=multi-user.service
