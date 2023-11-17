@@ -35,6 +35,9 @@ usage() {
     echo "        Sets the interval (in seconds) between battery voltage"
     echo "        checks when the backlight is off. Controls how quickly the"
     echo "        screen is unblanked. Default ${DEFAULT_WAKE_INTVL} s."
+    echo "    --daemon"
+    echo "        Wait a bit before attempting to find the default device."
+    echo "        (In lieu of figuring out proper inter-unit dependencies.)"
     echo "    --path=PATH"
     echo "        Set the path used to power the backlight on and off."
     echo "        Defaults to the first entry in /sys/class/backlight,"
@@ -91,6 +94,7 @@ BLANK_INTVL="${DEFAULT_BLANK_INTVL}"
 WAKE_INTVL="${DEFAULT_WAKE_INTVL}"
 DEVICE_PATH="${DEFAULT_DEVICE_PATH}"
 BINARY="${DEFAULT_BINARY}"
+DAEMON=false
 
 while [[ -n "$1" ]]; do
     case "$1" in
@@ -130,6 +134,11 @@ while [[ -n "$1" ]]; do
             shift
             ;;
 
+        --daemon)
+            DAEMON=true
+            shift
+            ;;
+
         --path|-path)
             DEVICE_PATH="$2"
             shift 2
@@ -162,12 +171,36 @@ validate "wake-threshold" "${WAKE_MV}" "${BLANK_MV:-0}" 5000
 validate "blank-interval" "${BLANK_INTVL}" 0 3600
 validate "wake-interval" "${WAKE_INTVL}" 0 3600
 
-if [[ -z "${DEVICE_PATH}" ]]; then
+if "${DAEMON}" && [[ -z "${DEVICE_PATH}" ]] && [[ -z "${DEFAULT_DEVICE_PATH}" ]]; then
+    # In theory, we should be able to get systemd to start this script after
+    # whatever magic configures /sys/class/backlight, but I can't figure it
+    # out, so in the absence of path, wait a bit and see if a default appears.
+    ATTEMPTS=0
+    MAX_ATTEMPTS=$((300 / BLANK_INTVL))
+    if [[ "${MAX_ATTEMPTS}" -lt 10 ]]; then
+        MAX_ATTEMPTS=10
+    fi
+
+    while [[ -z "${DEFAULT_DEVICE_PATH}" ]]; do
+        if [[ "${ATTEMPTS}" -ge "${MAX_ATTEMPTS}" ]]; then
+            abort "ERROR: path must be set because a suitable default was not found (tried ${ATTEMPTS} times)"
+        fi
+        perror "waiting for default device to become available"
+        sleep "${BLANK_INTVL}"
+        DEFAULT_DEVICE_PATH="$(default_path)"
+
+        ATTEMPTS=$((ATTEMPTS+1))
+    done
+
+    perror "found default device path ${DEFAULT_DEVICE_PATH}"
+    DEVICE_PATH="${DEFAULT_DEVICE_PATH}"
+elif [[ -z "${DEVICE_PATH}" ]]; then
     if [[ -z "${DEFAULT_DEVICE_PATH}" ]]; then
         abort "ERROR: path must be set because a suitable default was not found"
     fi
     abort "ERROR: path must be set to a non-empty value"
 fi
+
 [[ -e "${DEVICE_PATH}" ]] || abort "ERROR: path ${DEVICE_PATH} does not exist"
 
 [[ -n "${BINARY}" ]] || abort "ERROR: binary must be set"

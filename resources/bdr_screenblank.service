@@ -2,10 +2,10 @@
 Description=BDR Pi Screen Blanking Service
 
 [Service]
-ExecStart=/usr/local/bin/bdr_screenblank.sh
+ExecStart=/usr/local/bin/bdr_screenblank.sh --daemon
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=bdr_screenblank
 
 [Install]
-WantedBy=multi-user.service
+WantedBy=multi-user.target
