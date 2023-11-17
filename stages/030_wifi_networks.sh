@@ -21,7 +21,7 @@ run_stage() {
     fi
 
     # setup any images from the boot config (should be a no-op)
-    wireless_newtork_setup_preconfigured
+    wireless_network_setup_preconfigured
 
     local DEFAULT_PRIO_SSIDS=()
     local HIGH_PRIO_SSIDS=()
