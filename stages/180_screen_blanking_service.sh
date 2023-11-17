@@ -36,7 +36,7 @@ run_stage() {
         install "${FAKE_SCRIPT}" /usr/local/bin/fake-lifepo4wered-cli.sh
 
         sed -e '/^ExecStart=/ s@$@ --lifepo4wered-binary=/usr/local/bin/fake-lifepo4wered-cli.sh@' \
-            "${FAKE_SCRIPT}" >/lib/systemd/system/bdr_screenblank.service
+            "${SERVICE}" >/lib/systemd/system/bdr_screenblank.service
     else
         cp "${SERVICE}" /lib/systemd/system/bdr_screenblank.service
     fi
