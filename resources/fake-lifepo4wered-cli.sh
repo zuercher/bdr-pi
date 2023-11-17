@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VOLTAGE_FILE="/tmp/.bdr-pi-fake-voltage"
+_VOLTAGE_FILE="/tmp/.bdr-pi-fake-voltage"
 
 if [[ "$1" == "get" ]] && [[ "$2" == "vin" ]]; then
     if [[ -f "${_VOLTAGE_FILE}" ]]; then
@@ -8,6 +8,11 @@ if [[ "$1" == "get" ]] && [[ "$2" == "vin" ]]; then
         exit 0
     fi
     echo "4987"
+    exit 0
+fi
+
+if [[ "$1" == "set" ]] && [[ "$2" == "vin" ]] && [[ -n "$3" ]]; then
+    echo "$3" >"${_VOLTAGE_FILE}"
     exit 0
 fi
 
