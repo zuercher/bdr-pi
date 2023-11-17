@@ -5,6 +5,7 @@ run_stage() {
     systemctl disable man-db.service
     systemctl disable man-db.timer
     systemctl mask man-db.service
+    systemctl mask man-db.timer
 
     report "disabling bluetooth services"
     systemctl disable hciuart.service
@@ -14,4 +15,5 @@ run_stage() {
     systemctl disable apt-daily.service apt-daily-upgrade.service
     systemctl disable apt-daily.timer apt-daily-upgrade.timer
     systemctl mask apt-daily.service apt-daily-upgrade.service
+    systemctl mask apt-daily.timer apt-daily-upgrade.timer
 }
