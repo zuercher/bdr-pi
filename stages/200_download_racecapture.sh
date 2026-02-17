@@ -18,7 +18,7 @@ run_stage() {
     wget -O "${RC_FILE}" --no-verbose "${RC_URL}" || abort "unable to download ${RC_URL}"
 
     report "installing ${RC_FILE}"
-    apt install -y "/tmp${RC_FILE}"
+    apt-get install -y "/tmp${RC_FILE}"
 
     [[ -d "/opt/racecapture" ]] || abort "missing /opt/racecapture directory"
 
