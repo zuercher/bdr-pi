@@ -1,3 +1,5 @@
+.SUFFIXES:
+
 .PHONY: all
 all:
 	make docs/setup.sh imager.sh

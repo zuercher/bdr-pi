@@ -560,7 +560,7 @@ select_image() {
         cut -d: -f1)"
 
     if [[ -n "${DEFAULT}" ]]; then
-        PICK="$(prompt_default "${DEFAULT}" "Select a base image")"
+        PICK="$(prompt_default "${DEFAULT}" "Select a base image (probably want Legacy Lite)")"
     else
         PICK="$(prompt "Select a base image")"
     fi
@@ -666,6 +666,7 @@ set_lifepo4wered_config() {
     local CONFIG_LIFEPO
 
     perror "Configuring lifepo4wered-pi requires the hardware be present."
+    perror "(Power the Raspberry Pi directly via USB for install.)"
 
     CONFIG_LIFEPO="$(prompt_yesno Y "Configure lifepo4wered-pi UPS software during post-boot configuration?")"
     if [[ "${CONFIG_LIFEPO}" == "Y" ]]; then
@@ -706,7 +707,7 @@ set_user_config() {
 set_rotate_display() {
     local ROTATE
 
-    ROTATE=$(prompt_yesno N "Rotate display 180 degress (RPi official display only)?")
+    ROTATE=$(prompt_yesno N "Rotate display 180 degress?")
     if [[ "${ROTATE}" == "Y" ]]; then
         set_setup_config DISPLAY_ROTATE 180
     fi
@@ -758,6 +759,12 @@ image() {
         local PLIST
         PLIST="$(tmpfile disk-plist)"
         diskutil info -plist "${DISK}" >"${PLIST}" || abort "error getting disk info"
+
+        local DEVICE_NODE
+        DEVICE_NODE="$(plutil -extract "DeviceNode" raw "${PLIST}")"
+        if [[ "${DEVICE_NODE}" != "${DISK}" ]]; then
+            abort "Disk ${DISK} is not the root device, did you give the mount path?"
+        fi
 
         SIZE="$(plutil -extract "Size" raw "${PLIST}")"
         if [[ -z "${SIZE}" ]]; then
