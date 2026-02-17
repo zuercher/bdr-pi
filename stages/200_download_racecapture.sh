@@ -2,7 +2,7 @@
 
 run_stage() {
     local RC_URL="$(curl -s https://podium.live/software | \
-                         grep -Po '(?<=<a href=")[^"]*racecapture_linux_raspberrypi[^"]*.bz2[^"]*' | \
+                         grep -Po '(?<=<a href=")[^"]*racecapture_linux_raspberrypi[^"]*.deb[^"]*' | \
                          python3 -c 'import html, sys; [print(html.unescape(l), end="") for l in sys.stdin]')"
 
     [[ -n "${RC_URL}" ]] || abort "unable to determine download URL"
@@ -17,11 +17,8 @@ run_stage() {
     report "downloading ${RC_URL}"
     wget -O "${RC_FILE}" --no-verbose "${RC_URL}" || abort "unable to download ${RC_URL}"
 
-    report "extracting ${RC_FILE}"
-    tar xfj "${RC_FILE}" || abort "unable to extract ${RC_FILE}"
-
-    report "fixing ownership"
-    chown -R root:root /opt/racecapture
+    report "installing ${RC_FILE}"
+    apt install -y "${RC_FILE}"
 
     [[ -d "/opt/racecapture" ]] || abort "missing /opt/racecapture directory"
 
