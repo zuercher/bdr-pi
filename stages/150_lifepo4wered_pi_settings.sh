@@ -9,11 +9,14 @@ run_stage() {
 
     report "checking lifepo4wered defaults"
 
+    # PI_BOOT_TO controls how long the lifepo4wered will let
+    # the pi run without communication.
     declare -A SETTINGS=(
         [VBAT_MIN]="2750"
         [VBAT_SHDN]="2850"
-        [AUTO_SHDN_TIME]="20"
+        [AUTO_SHDN_TIME]="3"
         [PI_BOOT_TO]="900"
+        [AUTO_BOOT]=1
     )
 
     local UPDATED=false
