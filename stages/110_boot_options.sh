@@ -1,8 +1,6 @@
 #!/bin/bash
 
 run_stage() {
-    local GPU_MEM="${BDRPI_GPU_MEM:-256}"
-
     # Disable pi logo, console blanking, and the splash screen
     if ! grep -q "logo\.nologo" /boot/cmdline.txt; then
         report "disabling boot logo"
@@ -15,8 +13,4 @@ run_stage() {
 
         sed_inplace '1 s/$/ consoleblank=0/' /boot/cmdline.txt
     fi
-
-    boot_config_set "all" "disable_splash" "1"
-    boot_config_set "all" "disable_touchscreen" "1"
-    boot_config_set "all" "gpu_mem" "${GPU_MEM}"
 }

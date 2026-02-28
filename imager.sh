@@ -3,6 +3,10 @@
 
 #/# Usage: imager.sh <command> <options>
 #/#
+#/# Options:
+#/#     -n, --dry-run
+#/#         Skip actual work in the image command.
+#/#
 #/# Commands:
 #/#     list-disks [--all]
 #/#         List available disks for imaging. Defaults to physical,
@@ -381,6 +385,141 @@ clear_setup_config_array() {
     fi
 }
 
+_config_txt() {
+    echo "${BDRPI_BOOT_CONFIG_TXT:-/boot/config.txt}"
+}
+
+# boot_config_contains_regex $1=section $2=regex returns success if
+# /boot/config.txt contains a line matching regex within section
+# marked by [section].
+boot_config_contains_regex() {
+    local SECTION="$1"
+    local REGEX="$2"
+
+    local MATCHING
+    MATCHING="$(
+        awk -v S="[${SECTION}]" \
+            -v C='[all]' \
+            '{
+               if (substr($0, 0, 1) == "[") { C = $0 }
+               else if (C == S) { print $0 }
+             }' \
+             "$(_config_txt)" | \
+        grep -E "${REGEX}"
+    )"
+
+    [[ -n "${MATCHING}" ]]
+}
+
+# boot_config_contains $1=section $2=key $3=[value] checks if the
+# /boot/config.txt contains the give key (or key=value) entry in the
+# named section.
+boot_config_contains() {
+    local SECTION="$1"
+    local KEY="$2"
+    local VALUE=""
+    if [[ $# -gt 2 ]]; then
+        VALUE="$3"
+    fi
+
+    boot_config_contains_regex "${SECTION}" "^${KEY}=${VALUE}"
+}
+
+# boot_config_printf $1=section $...=printf-args checks if the last
+# section in /boot/config.txt matches the given section. If not, it
+# adds the section to the config. In any case, the remaining args are
+# used with printf to adds lines to the config. Schedules a reboot on
+# successful change.
+boot_config_printf() {
+    local SECTION="$1"
+    shift
+
+    local CONFIG_TXT="$(_config_txt)"
+    touch "${CONFIG_TXT}"
+
+    local LAST_SECTION
+    LAST_SECTION="$(grep -E '^\[' "${CONFIG_TXT}" | tail -n 1)"
+    if [[ "${LAST_SECTION}" != "[${SECTION}]" ]]; then
+        printf "\n[%s]\n" "${SECTION}" >>"$(_config_txt)" || \
+            abort "failed to add section ${SECTION} to ${CONFIG_TXT}"
+    fi
+
+    # shellcheck disable=SC2059
+    printf "$@" >>"${CONFIG_TXT}" || abort "failed to append ${SECTION} to ${CONFIG_TXT}"
+
+    reboot_required
+}
+
+# boot_config_replace $1=section $2=key $3=value sets the key to value
+# in the given section of /boot/config.txt. Fails if the key is not
+# already present in the section. Schedules a reboot on successful
+# change.
+boot_config_replace() {
+    local SECTION="$1"
+    local KEY="$2"
+    local VALUE="$3"
+
+    local CONFIG BACKUP
+    CONFIG="$(_config_txt)"
+    BACKUP="$(_config_txt)~"
+
+    if awk -v S="[${SECTION}]" \
+           -v C='[all]' \
+           -v K="${KEY}" \
+           -v V="${VALUE}" \
+           -v EC="1" \
+           '{
+              if (substr($0, 0, 1) == "[") {
+                C = $0
+                print $0
+              } else if (C == S) {
+                if (match($0, "^#?" K "=")) {
+                  print K "=" V
+                  EC = 0
+                } else {
+                  print $0
+                }
+              } else {
+                print $0
+              }
+           }
+           END { exit EC }' \
+           "${CONFIG}" >"${BACKUP}"; then
+        if mv "${BACKUP}" "${CONFIG}"; then
+            reboot_required
+            return 0
+        fi
+    fi
+
+    abort "failed to replace key ${KEY} with ${VALUE} in section ${SECTION}"
+}
+
+# boot_config_set $1=section $2=key $3=value sets the key to value in
+# the given section of /boot/config.txt. If the key does not exist in
+# the given section, it is appended. Schedules a reboot if the file is
+# changed.
+boot_config_set() {
+    local SECTION="$1"
+    local KEY="$2"
+    local VALUE="$3"
+
+    if boot_config_contains "${SECTION}" "${KEY}" "${VALUE}"; then
+        # Already set.
+        report "boot config: ${KEY} already set to ${VALUE} in section ${SECTION}"
+        return 0
+    fi
+
+    report "boot config: setting ${KEY} to ${VALUE} in section ${SECTION}"
+
+    if boot_config_contains_regex "${SECTION}" "^#?${KEY}="; then
+        # Has value, possibly commented out.
+        boot_config_replace "${SECTION}" "${KEY}" "${VALUE}"
+    else
+        # No value, append it.
+        boot_config_printf "${SECTION}" "%s=%s\n\n" "${KEY}" "${VALUE}"
+    fi
+}
+
 ROOT_DIR="$(cd "$(dirname "$0}")" && pwd)"
 
 DRYRUN="false"
@@ -448,7 +587,7 @@ list_disks() {
                          -extract "AllDisksAndPartitions.${INDEX}.Partitions.0.MountPoint" \
                          raw "${PLIST}" )"
 
-            echo "/dev/${DISK}  ${VOLUME:-?}"
+            echo "/dev/${DISK}: ${VOLUME:-?}"
             TOTAL=$((TOTAL+1))
         done
     fi
@@ -556,11 +695,11 @@ select_image() {
     DEFAULT="$(
         jq -r '.name' "${IMAGELIST}" | \
         nl -s: -w1 | \
-        grep Legacy | grep 64-bit | grep Lite |\
+        grep -v Legacy | grep 64-bit | grep Lite |\
         cut -d: -f1)"
 
     if [[ -n "${DEFAULT}" ]]; then
-        PICK="$(prompt_default "${DEFAULT}" "Select a base image (probably want Legacy Lite)")"
+        PICK="$(prompt_default "${DEFAULT}" "Select a base image (probably want Lite)")"
     else
         PICK="$(prompt "Select a base image")"
     fi
@@ -724,6 +863,13 @@ set_autolaunch_racecapture() {
     fi
 }
 
+# Provide an implementation so that lib/boot_config.sh
+# can find it, but because we're imaging there's no
+# actual reboot necessary.
+reboot_required() {
+    true
+}
+
 # prepare and write an image to the given $1=disk
 image() {
     local DISK="${1:-}"
@@ -834,6 +980,7 @@ image() {
         # Pretend /tmp is our volume.
         VOLUME="/tmp/example-boot-volume"
         mkdir -p "${VOLUME}" || abort "error creating ${VOLUME} for dry-run"
+        touch "${VOLUME}/config.txt"
     else
         # Figure out the volume name of our disk (which is set by the image), and where it lives
         VOLUME="$(list_disks | grep -F "${DISK}" | awk '{print $2}')"
@@ -855,15 +1002,55 @@ image() {
     perror
     set_autolaunch_racecapture
 
+    # generate user-data
+    local PI_HOSTNAME="$(prompt_default bdrpi "Specify a host name")"
+    local FIRST_RUN_USER="$(get_setup_config FIRST_RUN_USER)"
+    local FIRST_RUN_PASS="$(get_setup_config FIRST_RUN_PASS)"
+
+    if ! sed -e "s/{{PI_HOSTNAME}}/${PI_HOSTNAME}/; s/{{FIRST_RUN_USER}}/${FIRST_RUN_USER}/; s/{{FIRST_RUN_PASS}}/${FIRST_RUN_PASS}/" "${ROOT_DIR}/resources/user-data.tmpl" >"${VOLUME}/user-data"; then
+        abort "failed to write user-data to ${VOLUME}/user-data"
+    fi
+
+    # keep the user so we configure auto login
+    clear_setup_config FIRST_RUN_PASS
+
+    # generate_network-config
+    local WIFI_COUNTRY="$(get_setup_config WIFI_COUNTRY)"
+
+    if ! sed -e "s/{{WIFI_COUNTRY}}/${WIFI_COUNTRY}/" "${ROOT_DIR}/resources/network-config.tmpl" >"${VOLUME}/network-config"; then
+        abort "failed to write network-config"
+    fi
+
+    local NUM_CONFIGS="$(get_setup_config_array_size WIFI_SSID)"
+    if [[ -n "${NUM_CONFIGS}" ]] && [[ "${NUM_CONFIGS}" -gt 0 ]]; then
+        local IDX=0
+        while [[ "${IDX}" -lt "${NUM_CONFIGS}" ]]; do
+            local SSID PASS
+            SSID="$(get_setup_config_array WIFI_SSID "${IDX}")"
+            PASS="$(get_setup_config_array WIFI_PASS "${IDX}")"
+
+            if ! sed -e "s/{{SSID}}/${SSID}/; s/{{PASSWORD}}/${PASS}/" "${ROOT_DIR}/resources/network-config-ap.tmpl" >>"${VOLUME}/network-config"; then
+                abort "failed to add wifi network to network-config"
+            fi
+            IDX=$((IDX+1))
+        done
+
+        clear_setup_config_array WIFI_SSID
+        clear_setup_config_array WIFI_PASS
+        clear_setup_config_array WIFI_PRIO
+    fi
+
+    # modify config.txt
+    export BDRPI_BOOT_CONFIG_TXT="${VOLUME}/config.txt"
+
+    boot_config_set "all" "dtparam=i2c_arm" "on"
+    boot_config_set "all" "dtparam=audio" "off"
+    boot_config_set "all" "diable_splash" "1"
+    boot_config_set "all" "diable_touchscreen" "1"
+    boot_config_set "all" "gpu_mem" "${BDRPI_GPU_MEM:-256}"
+
     cp "${ROOT_DIR}/resources/firstrun.sh" "${VOLUME}/bdr-pi-firstrun.sh"
     cp "${ROOT_DIR}/docs/setup.sh" "${VOLUME}/bdr-pi-setup.sh"
-
-    if [[ -f "${VOLUME}/cmdline.txt" ]]; then
-        local CMDLINE
-        CMDLINE="$(cat "${VOLUME}/cmdline.txt")"
-        CMDLINE="${CMDLINE} systemd.run=/boot/bdr-pi-firstrun.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target"
-        ${SAFE} echo "${CMDLINE}" >"${VOLUME}/cmdline.txt" || abort "unable to write ${VOLUME}/cmdline.txt"
-    fi
 
     perror
     perror "Ejecting ${DISK}..."

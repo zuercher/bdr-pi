@@ -1,0 +1,18 @@
+# https://netplan.io/reference
+# https://cloudinit.readthedocs.io/en/latest/topics/network-config.html
+# https://cloudinit.readthedocs.io/en/latest/topics/network-config-format-v2.html
+
+network:
+  version: 2
+
+  ethernets:
+    eth0:
+      dhcp4: true
+      optional: true
+
+  wifis:
+    wlan0:
+      dhcp4: true
+      optional: false
+      regulatory-domain: {{WIFI_COUNTRY}}
+      access-points:
