@@ -164,6 +164,4 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin ${BDR_USER} --noclear %I \$TERM
 EOF
 
-touch "/home/${BDR_USER}/.bdrpi-reboot-on-first-boot"
-
 exit 0
