@@ -9,10 +9,6 @@ keyboard:
 locale: en_US.UTF-8
 timezone: America/Los_Angeles
 
-# do not auto reboot
-power_state:
-  condition: false
-
 users:
 - name: {{FIRST_RUN_USER}}
   gecos: BDR PI
@@ -61,4 +57,4 @@ apt:
 
 # Run arbitrary commands at rc.local like time
 runcmd:
-- /boot/bdr-pi-firstrun.sh
+- /boot/firmware/bdr-pi-firstrun.sh

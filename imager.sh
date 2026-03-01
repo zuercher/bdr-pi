@@ -386,11 +386,11 @@ clear_setup_config_array() {
 }
 
 _config_txt() {
-    echo "${BDRPI_BOOT_CONFIG_TXT:-/boot/config.txt}"
+    echo "${BDRPI_BOOT_CONFIG_TXT:-/boot/firmware/config.txt}"
 }
 
 # boot_config_contains_regex $1=section $2=regex returns success if
-# /boot/config.txt contains a line matching regex within section
+# /boot/firmware/config.txt contains a line matching regex within section
 # marked by [section].
 boot_config_contains_regex() {
     local SECTION="$1"
@@ -412,7 +412,7 @@ boot_config_contains_regex() {
 }
 
 # boot_config_contains $1=section $2=key $3=[value] checks if the
-# /boot/config.txt contains the give key (or key=value) entry in the
+# /boot/firmware/config.txt contains the give key (or key=value) entry in the
 # named section.
 boot_config_contains() {
     local SECTION="$1"
@@ -426,7 +426,7 @@ boot_config_contains() {
 }
 
 # boot_config_printf $1=section $...=printf-args checks if the last
-# section in /boot/config.txt matches the given section. If not, it
+# section in /boot/firmware/config.txt matches the given section. If not, it
 # adds the section to the config. In any case, the remaining args are
 # used with printf to adds lines to the config. Schedules a reboot on
 # successful change.
@@ -451,7 +451,7 @@ boot_config_printf() {
 }
 
 # boot_config_replace $1=section $2=key $3=value sets the key to value
-# in the given section of /boot/config.txt. Fails if the key is not
+# in the given section of /boot/firmware/config.txt. Fails if the key is not
 # already present in the section. Schedules a reboot on successful
 # change.
 boot_config_replace() {
@@ -495,7 +495,7 @@ boot_config_replace() {
 }
 
 # boot_config_set $1=section $2=key $3=value sets the key to value in
-# the given section of /boot/config.txt. If the key does not exist in
+# the given section of /boot/firmware/config.txt. If the key does not exist in
 # the given section, it is appended. Schedules a reboot if the file is
 # changed.
 boot_config_set() {

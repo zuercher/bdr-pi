@@ -6,7 +6,7 @@ run_stage() {
     if [[ "${ROTATE_DISPLAY}" == "180" ]]; then
         report "rotating display 180"
 
-        sed_inplace '1 s/$/ video=DSI-1:800x480@60,rotate='"${ROTATE_DISPLAY}"'/' /boot/cmdline.txt
+        sed_inplace '1 s/$/ video=DSI-1:800x480@60,rotate='"${ROTATE_DISPLAY}"'/' /boot/firmware/cmdline.txt
 
         reboot_required
     elif [[ -n "${ROTATE_DISPLAY}" ]]; then

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-[[ -z "${BDRPI_CONFIG}" ]] && BDRPI_CONFIG="/boot/bdr-pi-config.txt"
-[[ -z "${BDRPI_SETUP_SH}" ]] && BDRPI_SETUP_SH="/boot/bdr-pi-setup.sh"
-[[ -z "${BDRPI_LOG}" ]] && BDRPI_LOG="/boot/bdr-pi.log"
+[[ -z "${BDRPI_CONFIG}" ]] && BDRPI_CONFIG="/boot/firmware/bdr-pi-config.txt"
+[[ -z "${BDRPI_SETUP_SH}" ]] && BDRPI_SETUP_SH="/boot/firmware/bdr-pi-setup.sh"
+[[ -z "${BDRPI_LOG}" ]] && BDRPI_LOG="/tmp/bdr-pi.log"
 
 logger() {
     local MSG="$*"
@@ -31,11 +31,8 @@ abort() {
 }
 
 cleanup() {
-    # disable running this script on boot
-    sed_inplace 's/ systemd.run.*//g' /boot/cmdline.txt
-
     # clean ourselves up
-    rm -f /boot/bdr-pi-firstrun.sh
+    rm -f /boot/firmware/bdr-pi-firstrun.sh
 
     logger "completed $0"
 }
@@ -105,7 +102,7 @@ configure_user() {
 
 logger "starting $0"
 
-# create user with PW from /boot/bdr-pi-config.txt
+# create user with PW from /boot/firmware/bdr-pi-config.txt
 BDR_USER="$(getconfig FIRST_RUN_USER)"
 if [[ -z "${BDR_USER}" ]]; then
     BDR_USER="pi"
@@ -118,7 +115,7 @@ if [[ -n "${BDR_PASS}" ]]; then
     configure_user "${BDR_USER}" "${BDR_PASS}"
 fi
 
-# copy /boot/bdr-setup.sh to /home/$BDR_USER/setup.sh
+# copy /boot/firmware/bdr-setup.sh to /home/$BDR_USER/setup.sh
 BDR_USER_HOME="/home/${BDR_USER}"
 if [[ ! -f "\"${BDR_USER_HOME}/setup.sh" ]]; then
     logger "copying setup script to user home (${BDR_USER_HOME})"
