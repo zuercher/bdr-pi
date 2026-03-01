@@ -38,4 +38,6 @@ run_stage() {
 
     report "removing boot dep on NetworkManager"
     rm /etc/systemd/system/multi-user.target.wants/NetworkManager.service
+
+    sytemctl daemon-reload
 }
