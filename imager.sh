@@ -520,6 +520,22 @@ boot_config_set() {
     fi
 }
 
+# boot_config_append $1=section $2=key $3=value adds a key/value in the
+# given section for repeatable keys (like dtoverlay)
+boot_config_append() {
+    local SECTION="$1"
+    local KEY="$2"
+    local VALUE="$3"
+
+    if boot_config_contains "${SECTION}" "${KEY}" "${VALUE}"; then
+        # Already set.
+        report "boot config: ${KEY} already set to ${VALUE} in section ${SECTION}"
+        return 0
+    fi
+
+    boot_config_printf "${SECTION}" "%s=%s\n\n" "${KEY}" "${VALUE}"
+}
+
 ROOT_DIR="$(cd "$(dirname "$0}")" && pwd)"
 
 DRYRUN="false"
@@ -1045,9 +1061,12 @@ image() {
 
     boot_config_set "all" "dtparam=i2c_arm" "on"
     boot_config_set "all" "dtparam=audio" "off"
-    boot_config_set "all" "diable_splash" "1"
-    boot_config_set "all" "diable_touchscreen" "1"
+    boot_config_set "all" "disable_splash" "1"
+    boot_config_set "all" "disable_touchscreen" "1"
+    boot_config_set "all" "boot_delay" "0"
+    boot_config_set "all" "camera_auto_detect" "0"
     boot_config_set "all" "gpu_mem" "${BDRPI_GPU_MEM:-256}"
+    boot_config_append "all" "dtoverlay" "disable-bt"
 
     cp "${ROOT_DIR}/resources/firstrun.sh" "${VOLUME}/bdr-pi-firstrun.sh"
     cp "${ROOT_DIR}/docs/setup.sh" "${VOLUME}/bdr-pi-setup.sh"
