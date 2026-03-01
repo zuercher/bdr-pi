@@ -152,11 +152,12 @@ if ! grep -q "BEGIN_ON_REBOOT" "${BDR_USER_HOME}/.bashrc"; then
 EOF
 fi
 
-# configure autologin
+# configure autologin; the extra ExecStart clears the default
 logger "configuring autologin for ${BDR_USER}"
 ln -fs \
    /lib/systemd/system/getty@.service \
    /etc/systemd/system/getty.target.wants/getty@tty1.service
+mkdir -p /etc/systemd/system/getty@tty1.service.d
 cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
 [Service]
 ExecStart=
